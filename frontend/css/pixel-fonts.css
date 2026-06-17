@@ -1,0 +1,15 @@
+/* Pixel Art Fonts */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* Alternative pixel fonts can be imported here */
+@font-face {
+    font-family: 'PixelArt';
+    src: local('Press Start 2P');
+}
+
+.pixel-font {
+    font-family: 'Press Start 2P', 'Courier New', monospace;
+    letter-spacing: 2px;
+    font-size: 14px;
+}
