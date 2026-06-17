@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifeQuest - RPG Game</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/pixel-fonts.css">
+    <link rel="stylesheet" href="css/dark-fantasy.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Main Game Container -->
+        <div id="app" class="app">
+            <!-- Auth Screen -->
+            <div id="auth-screen" class="screen auth-screen active">
+                <div class="auth-container">
+                    <div class="auth-header">
+                        <h1 class="game-title">⚔️ LIFE QUEST ⚔️</h1>
+                        <p class="game-subtitle">"Choose Your Destiny"</p>
+                    </div>
+
+                    <!-- Login Form -->
+                    <div id="login-form" class="form-container active">
+                        <h2 class="form-title">⚔️ RETURN WARRIOR ⚔️</h2>
+                        
+                        <div class="form-group">
+                            <label for="login-username" class="form-label">Username:</label>
+                            <input 
+                                type="text" 
+                                id="login-username" 
+                                class="form-input pixel-input"
+                                placeholder="Enter your login..."
+                                maxlength="20"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <button class="btn btn-primary" onclick="switchToRegister()">
+                                → CREATE NEW CHARACTER ←
+                            </button>
+                        </div>
+
+                        <div class="form-group">
+                            <button class="btn btn-success" onclick="loginUser()">
+                                ► LOGIN ◄
+                            </button>
+                        </div>
+
+                        <div id="login-error" class="error-message"></div>
+                    </div>
+
+                    <!-- Register Form -->
+                    <div id="register-form" class="form-container">
+                        <h2 class="form-title">⚔️ CREATE CHARACTER ⚔️</h2>
+                        
+                        <div class="form-group">
+                            <label for="reg-username" class="form-label">Username:</label>
+                            <input 
+                                type="text" 
+                                id="reg-username" 
+                                class="form-input pixel-input"
+                                placeholder="3-20 characters..."
+                                maxlength="20"
+                            >
+                            <small class="form-hint">Only letters, numbers, -, _</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reg-password" class="form-label">Password:</label>
+                            <input 
+                                type="password" 
+                                id="reg-password" 
+                                class="form-input pixel-input"
+                                placeholder="6+ characters..."
+                                minlength="6"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reg-first-name" class="form-label">First Name:</label>
+                            <input 
+                                type="text" 
+                                id="reg-first-name" 
+                                class="form-input pixel-input"
+                                placeholder="Your name..."
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reg-last-name" class="form-label">Last Name:</label>
+                            <input 
+                                type="text" 
+                                id="reg-last-name" 
+                                class="form-input pixel-input"
+                                placeholder="Your surname..."
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <button class="btn btn-success" onclick="registerUser()">
+                                ► REGISTER ◄
+                            </button>
+                        </div>
+
+                        <div class="form-group">
+                            <button class="btn btn-secondary" onclick="switchToLogin()">
+                                → BACK ←
+                            </button>
+                        </div>
+
+                        <div id="register-error" class="error-message"></div>
+                        <div id="register-success" class="success-message"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Screen (after login) -->
+            <div id="game-screen" class="screen game-screen">
+                <div class="game-header">
+                    <h1 class="game-title">⚔️ LIFE QUEST ⚔️</h1>
+                </div>
+
+                <div class="game-content">
+                    <div class="player-panel">
+                        <h2 class="panel-title">PLAYER INFO</h2>
+                        <div id="player-info" class="player-info">
+                            <p>Name: <span id="player-name">-</span></p>
+                            <p>Level: <span id="player-level">1</span></p>
+                            <p>Experience: <span id="player-exp">0</span></p>
+                            <p>Coins: <span id="player-coins">0</span></p>
+                        </div>
+                    </div>
+
+                    <div class="game-area">
+                        <h2 class="panel-title">GAME AREA</h2>
+                        <p class="coming-soon">🎮 Coming Soon...</p>
+                    </div>
+
+                    <div class="actions-panel">
+                        <button class="btn btn-secondary" onclick="logout()">
+                            ► LOGOUT ◄
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ui.js"></script>
+</body>
+</html>
