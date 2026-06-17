@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
 Base = declarative_base()
@@ -11,9 +11,13 @@ class User(Base):
     
     id = Column(Integer, primary_key=True)
     telegram_id = Column(Integer, unique=True, index=True)
-    username = Column(String(255), nullable=True)
+    username = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    display_name = Column(String(255), nullable=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
+    avatar = Column(String(64), default="pixel_adventurer")
+    character_class = Column(String(64), default="adventurer")
     level = Column(Integer, default=1)
     experience = Column(Integer, default=0)
     coins = Column(Integer, default=0)

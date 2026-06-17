@@ -17,6 +17,24 @@ Thank you for your interest in contributing to TG BOT RPG! 🎉
 - Use English for code comments
 - Use English for UI text
 
+## Secrets and Tokens
+
+- Never commit `.env`, `.env.local`, or any file that contains a real Telegram bot token.
+- Use `.env.example` only for placeholder values that are safe to publish.
+- Keep your local token in `.env`:
+
+```bash
+cp .env.example .env
+```
+
+- Before opening a Pull Request, check that no secret is included:
+
+```bash
+git diff --cached
+```
+
+- If you accidentally pushed a real token, revoke it in @BotFather, generate a new token, and tell maintainers that the old token was exposed.
+
 ## Development Setup
 
 ```bash

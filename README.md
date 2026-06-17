@@ -52,6 +52,7 @@ Add your Telegram token to the `.env` file:
 ```
 BOT_TOKEN=your_telegram_bot_token_here
 ```
+Use your own token from [@BotFather](https://t.me/BotFather). Do not paste the real token into source files, README, issues, commits, or pull requests.
 
 5. Run the bot:
 ```bash
@@ -84,7 +85,16 @@ TG_BOT_RPG/
 
 ## Security
 
-⚠️ **IMPORTANT**: Never commit your `.env` file with the token! The `.env` file is automatically added to `.gitignore`.
+⚠️ **IMPORTANT**: Never commit your `.env` file with the token. The repository contains only `.env.example`, which is a safe template without real secrets.
+
+Security rules for contributors:
+
+- Keep real secrets only in local `.env` files or in your hosting provider's secret manager.
+- Do not hardcode `BOT_TOKEN` in Python files.
+- Do not send tokens in screenshots, GitHub Issues, Pull Requests, logs, or chat messages.
+- If a token was accidentally published, revoke it immediately in [@BotFather](https://t.me/BotFather) and generate a new one.
+- For GitHub Actions or deployments, store tokens in GitHub repository secrets, for example `BOT_TOKEN`, and pass them as environment variables.
+- Everyone who forks the project should create their own bot token. Shared production tokens should not be used for local development.
 
 ## License
 
