@@ -6,13 +6,13 @@ import sys
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.orm import Session, sessionmaker
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.users import Base
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
 
@@ -25,20 +25,51 @@ app.config['DEBUG'] = os.getenv('DEBUG', 'True').lower() == 'true'
 
 # Database setup
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./bot.db')
-async_db_url = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
 
 # Store session maker for use in routes
 app.engine = None
-app.async_session = None
+app.session_local = None
 
 
-async def init_db():
+def init_db():
     """Initialize database connection"""
-    app.engine = create_async_engine(async_db_url, echo=False)
-    app.async_session = sessionmaker(app.engine, class_=AsyncSession, expire_on_commit=False)
-    
-    async with app.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    app.engine = create_engine(DATABASE_URL, echo=False)
+    app.session_local = sessionmaker(
+        bind=app.engine,
+        class_=Session,
+        expire_on_commit=False,
+    )
+    Base.metadata.create_all(bind=app.engine)
+    migrate_sqlite_schema()
+
+
+def migrate_sqlite_schema():
+    """Add missing SQLite columns for existing local development databases."""
+    if app.engine is None or app.engine.dialect.name != 'sqlite':
+        return
+
+    inspector = inspect(app.engine)
+    if 'users' not in inspector.get_table_names():
+        return
+
+    existing_columns = {column['name'] for column in inspector.get_columns('users')}
+    migrations = {
+        'password_hash': 'ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)',
+        'display_name': 'ALTER TABLE users ADD COLUMN display_name VARCHAR(255)',
+        'avatar': (
+            "ALTER TABLE users ADD COLUMN avatar VARCHAR(64) "
+            "DEFAULT 'pixel_adventurer'"
+        ),
+        'character_class': (
+            "ALTER TABLE users ADD COLUMN character_class VARCHAR(64) "
+            "DEFAULT 'adventurer'"
+        ),
+    }
+
+    with app.engine.begin() as connection:
+        for column_name, statement in migrations.items():
+            if column_name not in existing_columns:
+                connection.execute(text(statement))
 
 
 # Import routes
@@ -78,10 +109,7 @@ def internal_error(error):
 
 def run_server():
     """Run Flask server"""
-    import asyncio
-    
-    # Initialize database
-    asyncio.run(init_db())
+    init_db()
     
     port = int(os.getenv('PORT', 5000))
     app.run(

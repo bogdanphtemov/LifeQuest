@@ -3,45 +3,90 @@ Authentication API routes
 """
 from flask import Blueprint, request, jsonify
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 import hashlib
-import asyncio
-from functools import wraps
+import hmac
+import os
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 
-def async_route(f):
-    """Decorator to handle async route handlers"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(f(*args, **kwargs))
-        finally:
-            loop.close()
-    return decorated_function
+def normalize_username(username: str) -> str:
+    """Normalize username for consistent login lookup."""
+    return username.strip().lower()
+
+
+def validate_username(username: str) -> str | None:
+    """Return an error message when username is invalid."""
+    if len(username) < 3 or len(username) > 20:
+        return 'Username must be 3-20 characters'
+
+    if not username.replace('_', '').replace('-', '').isalnum():
+        return 'Username can only contain letters, numbers, hyphens, and underscores'
+
+    return None
 
 
 def hash_password(password: str) -> str:
-    """Hash password using SHA256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using PBKDF2-HMAC with a per-user salt."""
+    salt = os.urandom(16)
+    password_hash = hashlib.pbkdf2_hmac(
+        'sha256',
+        password.encode('utf-8'),
+        salt,
+        600_000,
+    )
+    return f'{salt.hex()}${password_hash.hex()}'
 
 
-async def get_session():
+def verify_password(password: str, stored_hash: str | None) -> bool:
+    """Verify a password against supported stored hash formats."""
+    if not stored_hash:
+        return False
+
+    if '$' not in stored_hash:
+        legacy_hash = hashlib.sha256(password.encode()).hexdigest()
+        return hmac.compare_digest(legacy_hash, stored_hash)
+
+    salt_hex, hash_hex = stored_hash.split('$', 1)
+    password_hash = hashlib.pbkdf2_hmac(
+        'sha256',
+        password.encode('utf-8'),
+        bytes.fromhex(salt_hex),
+        600_000,
+    )
+    return hmac.compare_digest(password_hash.hex(), hash_hex)
+
+
+def serialize_user(user):
+    """Serialize user model for API responses."""
+    return {
+        'id': user.id,
+        'telegram_id': user.telegram_id,
+        'username': user.username,
+        'display_name': user.display_name,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'avatar': user.avatar,
+        'character_class': user.character_class,
+        'level': user.level,
+        'experience': user.experience,
+        'coins': user.coins,
+        'created_at': user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+def get_session_factory():
     """Get database session from Flask app context"""
     from flask import current_app
-    if current_app.async_session is None:
+
+    if current_app.session_local is None:
         raise RuntimeError("Database not initialized")
-    
-    async with current_app.async_session() as session:
-        return session
+
+    return current_app.session_local
 
 
 @bp.route('/register', methods=['POST'])
-@async_route
-async def register():
+def register():
     """Register new user
     
     Expected JSON:
@@ -62,17 +107,17 @@ async def register():
         return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
     
     # Validate required fields
-    username = data.get('username', '').strip()
+    username = normalize_username(data.get('username', ''))
     password = data.get('password', '').strip()
     telegram_id = data.get('telegram_id')
     first_name = data.get('first_name', '').strip()
     last_name = data.get('last_name', '').strip()
     
-    # Validation
-    if not username or len(username) < 3 or len(username) > 20:
+    validation_error = validate_username(username)
+    if validation_error:
         return jsonify({
             'status': 'error',
-            'message': 'Username must be 3-20 characters'
+            'message': validation_error
         }), 400
     
     if not password or len(password) < 6:
@@ -88,9 +133,9 @@ async def register():
         }), 400
     
     try:
-        async with current_app.async_session() as session:
+        with get_session_factory()() as session:
             # Check if user already exists
-            result = await session.execute(
+            result = session.execute(
                 select(User).where(User.username == username)
             )
             if result.scalar_one_or_none():
@@ -100,7 +145,7 @@ async def register():
                 }), 409
             
             # Check if telegram_id already exists
-            result = await session.execute(
+            result = session.execute(
                 select(User).where(User.telegram_id == telegram_id)
             )
             if result.scalar_one_or_none():
@@ -113,22 +158,24 @@ async def register():
             new_user = User(
                 telegram_id=telegram_id,
                 username=username,
+                password_hash=hash_password(password),
+                display_name=first_name or username,
                 first_name=first_name,
-                last_name=last_name
+                last_name=last_name,
+                avatar='pixel_adventurer',
+                character_class='adventurer',
+                level=1,
+                experience=0,
+                coins=0,
             )
             session.add(new_user)
-            await session.commit()
-            await session.refresh(new_user)
+            session.commit()
+            session.refresh(new_user)
             
             return jsonify({
                 'status': 'success',
                 'message': 'User registered successfully',
-                'user': {
-                    'id': new_user.id,
-                    'telegram_id': new_user.telegram_id,
-                    'username': new_user.username,
-                    'first_name': new_user.first_name
-                }
+                'user': serialize_user(new_user)
             }), 201
     
     except Exception as e:
@@ -139,13 +186,13 @@ async def register():
 
 
 @bp.route('/login', methods=['POST'])
-@async_route
-async def login():
+def login():
     """Login user
     
     Expected JSON:
     {
         "username": "username",
+        "password": "password",
         "telegram_id": 123456789
     }
     """
@@ -157,43 +204,43 @@ async def login():
     if not data:
         return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
     
-    username = data.get('username', '').strip()
+    username = normalize_username(data.get('username', ''))
+    password = data.get('password', '').strip()
     telegram_id = data.get('telegram_id')
     
-    if not username or not telegram_id:
+    if not username or not password or not telegram_id:
         return jsonify({
             'status': 'error',
-            'message': 'Username and Telegram ID are required'
+            'message': 'Username, password, and Telegram ID are required'
         }), 400
     
     try:
-        async with current_app.async_session() as session:
-            result = await session.execute(
-                select(User).where(
-                    (User.username == username) & 
-                    (User.telegram_id == telegram_id)
-                )
+        with get_session_factory()() as session:
+            result = session.execute(
+                select(User).where(User.username == username)
             )
             user = result.scalar_one_or_none()
             
-            if not user:
+            if not user or not verify_password(password, user.password_hash):
                 return jsonify({
                     'status': 'error',
-                    'message': 'Invalid username or Telegram ID'
+                    'message': 'Invalid username or password'
                 }), 401
+
+            if user.telegram_id and user.telegram_id != telegram_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Account is linked to another Telegram user'
+                }), 403
+
+            if user.telegram_id != telegram_id:
+                user.telegram_id = telegram_id
+                session.commit()
             
             return jsonify({
                 'status': 'success',
                 'message': 'Login successful',
-                'user': {
-                    'id': user.id,
-                    'telegram_id': user.telegram_id,
-                    'username': user.username,
-                    'first_name': user.first_name,
-                    'level': user.level,
-                    'experience': user.experience,
-                    'coins': user.coins
-                }
+                'user': serialize_user(user)
             }), 200
     
     except Exception as e:
@@ -204,15 +251,14 @@ async def login():
 
 
 @bp.route('/user/<int:telegram_id>', methods=['GET'])
-@async_route
-async def get_user(telegram_id):
+def get_user(telegram_id):
     """Get user profile by Telegram ID"""
     from database.users import User
     from flask import current_app
     
     try:
-        async with current_app.async_session() as session:
-            result = await session.execute(
+        with get_session_factory()() as session:
+            result = session.execute(
                 select(User).where(User.telegram_id == telegram_id)
             )
             user = result.scalar_one_or_none()
@@ -225,17 +271,7 @@ async def get_user(telegram_id):
             
             return jsonify({
                 'status': 'success',
-                'user': {
-                    'id': user.id,
-                    'telegram_id': user.telegram_id,
-                    'username': user.username,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'level': user.level,
-                    'experience': user.experience,
-                    'coins': user.coins,
-                    'created_at': user.created_at.isoformat() if user.created_at else None
-                }
+                'user': serialize_user(user)
             }), 200
     
     except Exception as e:

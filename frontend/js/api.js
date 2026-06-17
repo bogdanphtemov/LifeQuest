@@ -45,11 +45,12 @@ class APIClient {
         });
     }
 
-    async login(username, telegramId) {
+    async login(username, password, telegramId) {
         return this.request('/auth/login', {
             method: 'POST',
             body: JSON.stringify({
                 username,
+                password,
                 telegram_id: telegramId,
             }),
         });

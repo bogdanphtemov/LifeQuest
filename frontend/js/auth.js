@@ -96,6 +96,7 @@ async function registerUser() {
 
 async function loginUser() {
     const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
     const errorDiv = document.getElementById('login-error');
 
     errorDiv.classList.remove('show');
@@ -106,8 +107,14 @@ async function loginUser() {
         return;
     }
 
+    if (!password) {
+        errorDiv.textContent = 'Please enter your password';
+        errorDiv.classList.add('show');
+        return;
+    }
+
     try {
-        const response = await api.login(username, telegramUserId);
+        const response = await api.login(username, password, telegramUserId);
         
         authManager.saveUserToStorage(response.user);
         switchToGameScreen();

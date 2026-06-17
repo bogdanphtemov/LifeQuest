@@ -16,6 +16,7 @@ function switchToAuthScreen() {
     
     // Clear forms
     document.getElementById('login-username').value = '';
+    document.getElementById('login-password').value = '';
     document.getElementById('reg-username').value = '';
     document.getElementById('reg-password').value = '';
     document.getElementById('reg-first-name').value = '';
