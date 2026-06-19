@@ -2,7 +2,7 @@
 Authentication API routes
 """
 from flask import Blueprint, request, jsonify
-from sqlalchemy import select
+from sqlalchemy import func, select
 import hashlib
 import hmac
 import json
@@ -55,7 +55,7 @@ def verify_telegram_init_data(init_data: str) -> dict:
 
 def normalize_username(username: str) -> str:
     """Normalize username for consistent login lookup."""
-    return username.strip().lower()
+    return username.strip().lstrip('@').lower()
 
 
 def validate_username(username: str) -> str | None:
@@ -479,8 +479,11 @@ def delete_account():
 
     try:
         with get_session_factory()() as session:
+            username_column = func.lower(func.trim(User.username))
             user = session.execute(
-                select(User).where(User.username == username)
+                select(User).where(
+                    username_column.in_((username, f'@{username}'))
+                )
             ).scalar_one_or_none()
 
             if not user or not verify_password(password, user.password_hash):

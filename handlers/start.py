@@ -3,7 +3,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from config import WEB_APP_URL
 from database.users import User
@@ -38,15 +38,19 @@ def get_user_by_telegram_id(session: Session, telegram_id: int) -> User | None:
 
 def get_user_by_login(session: Session, login: str) -> User | None:
     """Get user by login"""
+    normalized_login = normalize_username(login)
+    username_column = func.lower(func.trim(User.username))
     result = session.execute(
-        select(User).where(User.username == login)
+        select(User).where(
+            username_column.in_((normalized_login, f"@{normalized_login}"))
+        )
     )
     return result.scalar_one_or_none()
 
 
 def normalize_username(username: str) -> str:
     """Normalize username for consistent login lookup."""
-    return username.strip().lower()
+    return username.strip().lstrip("@").lower()
 
 
 def validate_username(username: str) -> str | None:
