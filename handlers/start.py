@@ -119,26 +119,48 @@ def is_valid_web_app_url(url: str) -> bool:
     )
 
 
+def build_start_keyboard() -> InlineKeyboardMarkup:
+    """Build the main bot action keyboard."""
+    buttons = []
+
+    if is_valid_web_app_url(WEB_APP_URL):
+        buttons.append([
+            InlineKeyboardButton(
+                text="Open LifeQuest",
+                web_app=WebAppInfo(url=WEB_APP_URL),
+            )
+        ])
+
+    buttons.append([
+        InlineKeyboardButton(
+            text="Delete account",
+            callback_data="delete_account",
+        )
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+async def start_delete_account_flow(message: types.Message, state: FSMContext):
+    """Ask for account login before deletion."""
+    await state.clear()
+    await message.answer(
+        "Account deletion started.\n\n"
+        "Enter the login of the account you want to delete:"
+    )
+    await state.set_state(AuthStates.waiting_for_delete_username)
+
+
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext, session: Session):
     """Open the Telegram Mini App."""
     await state.clear()
 
     if is_valid_web_app_url(WEB_APP_URL):
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="Open LifeQuest",
-                        web_app=WebAppInfo(url=WEB_APP_URL),
-                    )
-                ]
-            ]
-        )
         await message.answer(
             "Welcome to TG BOT RPG!\n\n"
             "Open the RPG app to create your character, manage quests, and track your progress.",
-            reply_markup=keyboard,
+            reply_markup=build_start_keyboard(),
         )
         return
 
@@ -148,7 +170,8 @@ async def cmd_start(message: types.Message, state: FSMContext, session: Session)
         f"{WEB_APP_URL}\n\n"
         "Telegram Mini App buttons require a public HTTPS WEB_APP_URL. "
         "Put only the HTTPS URL in .env, without the arrow or local address. "
-        "Example: WEB_APP_URL=https://example.ngrok-free.app"
+        "Example: WEB_APP_URL=https://example.ngrok-free.app",
+        reply_markup=build_start_keyboard(),
     )
 
 
@@ -176,12 +199,15 @@ async def cmd_cancel(message: types.Message, state: FSMContext):
 @router.message(Command("delete_account"))
 async def cmd_delete_account(message: types.Message, state: FSMContext):
     """Start account deletion flow."""
-    await state.clear()
-    await message.answer(
-        "Account deletion started.\n\n"
-        "Enter the login of the account you want to delete:"
-    )
-    await state.set_state(AuthStates.waiting_for_delete_username)
+    await start_delete_account_flow(message, state)
+
+
+@router.callback_query(lambda callback: callback.data == "delete_account")
+async def callback_delete_account(callback: types.CallbackQuery, state: FSMContext):
+    """Start account deletion flow from the inline menu button."""
+    await callback.answer()
+    if callback.message:
+        await start_delete_account_flow(callback.message, state)
 
 
 @router.message(AuthStates.waiting_for_existing_password)
@@ -260,6 +286,13 @@ async def process_delete_username(message: types.Message, state: FSMContext, ses
         await message.answer("Login was not found. Try again or use /cancel.")
         return
 
+    if user.telegram_id and user.telegram_id != message.from_user.id:
+        await message.answer(
+            "This account is linked to another Telegram user. Deletion cancelled."
+        )
+        await state.clear()
+        return
+
     await state.update_data(delete_login=login)
     await message.answer(
         "Enter the password for this account to confirm deletion:"
@@ -276,6 +309,13 @@ async def process_delete_password(message: types.Message, state: FSMContext, ses
 
     if not user or not verify_password(message.text or "", user.password_hash):
         await message.answer("Wrong login or password. Deletion cancelled.")
+        await state.clear()
+        return
+
+    if user.telegram_id and user.telegram_id != message.from_user.id:
+        await message.answer(
+            "This account is linked to another Telegram user. Deletion cancelled."
+        )
         await state.clear()
         return
 

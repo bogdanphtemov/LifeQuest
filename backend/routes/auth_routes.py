@@ -463,7 +463,13 @@ def delete_account():
         return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
 
     username = normalize_username(data.get('username', ''))
-    password = data.get('password', '').strip()
+    password = data.get('password', '')
+
+    if not isinstance(password, str):
+        return jsonify({
+            'status': 'error',
+            'message': 'Password must be a string'
+        }), 400
 
     if not username or not password:
         return jsonify({
