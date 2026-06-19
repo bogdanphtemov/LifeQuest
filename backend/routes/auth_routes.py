@@ -445,6 +445,65 @@ def login():
         }), 500
 
 
+@bp.route('/account', methods=['DELETE'])
+def delete_account():
+    """Delete a user account after confirming username and password.
+
+    Expected JSON:
+    {
+        "username": "username",
+        "password": "password"
+    }
+    """
+    from database.users import User
+
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
+
+    username = normalize_username(data.get('username', ''))
+    password = data.get('password', '').strip()
+
+    if not username or not password:
+        return jsonify({
+            'status': 'error',
+            'message': 'Username and password are required'
+        }), 400
+
+    try:
+        with get_session_factory()() as session:
+            user = session.execute(
+                select(User).where(User.username == username)
+            ).scalar_one_or_none()
+
+            if not user or not verify_password(password, user.password_hash):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid username or password'
+                }), 401
+
+            deleted_user = {
+                'id': user.id,
+                'username': user.username,
+            }
+
+            session.delete(user)
+            session.commit()
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Account deleted successfully',
+                'deleted_user': deleted_user
+            }), 200
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Account deletion failed: {str(e)}'
+        }), 500
+
+
 @bp.route('/user/<int:telegram_id>', methods=['GET'])
 def get_user(telegram_id):
     """Get user profile by Telegram ID"""
