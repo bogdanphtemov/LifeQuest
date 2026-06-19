@@ -24,6 +24,8 @@ class AuthStates(StatesGroup):
     waiting_for_existing_password = State()
     waiting_for_login_username = State()
     waiting_for_login_password = State()
+    waiting_for_delete_username = State()
+    waiting_for_delete_password = State()
 
 
 def get_user_by_telegram_id(session: Session, telegram_id: int) -> User | None:
@@ -164,6 +166,24 @@ async def cmd_login(message: types.Message, state: FSMContext, session: Session)
     await state.set_state(AuthStates.waiting_for_login_username)
 
 
+@router.message(Command("cancel"))
+async def cmd_cancel(message: types.Message, state: FSMContext):
+    """Cancel the current chat flow."""
+    await state.clear()
+    await message.answer("Current action cancelled.")
+
+
+@router.message(Command("delete_account"))
+async def cmd_delete_account(message: types.Message, state: FSMContext):
+    """Start account deletion flow."""
+    await state.clear()
+    await message.answer(
+        "Account deletion started.\n\n"
+        "Enter the login of the account you want to delete:"
+    )
+    await state.set_state(AuthStates.waiting_for_delete_username)
+
+
 @router.message(AuthStates.waiting_for_existing_password)
 async def process_existing_password(
     message: types.Message,
@@ -227,6 +247,53 @@ async def process_login_password(message: types.Message, state: FSMContext, sess
     await message.answer(
         f"Logged in as {user.display_name or user.username}.\n\n"
         "Use /profile to view your character."
+    )
+
+
+@router.message(AuthStates.waiting_for_delete_username)
+async def process_delete_username(message: types.Message, state: FSMContext, session: Session):
+    """Store username for account deletion."""
+    login = normalize_username(message.text or "")
+    user = get_user_by_login(session, login)
+
+    if not user:
+        await message.answer("Login was not found. Try again or use /cancel.")
+        return
+
+    await state.update_data(delete_login=login)
+    await message.answer(
+        "Enter the password for this account to confirm deletion:"
+    )
+    await state.set_state(AuthStates.waiting_for_delete_password)
+
+
+@router.message(AuthStates.waiting_for_delete_password)
+async def process_delete_password(message: types.Message, state: FSMContext, session: Session):
+    """Delete an account after login and password confirmation."""
+    data = await state.get_data()
+    login = data.get("delete_login", "")
+    user = get_user_by_login(session, login)
+
+    if not user or not verify_password(message.text or "", user.password_hash):
+        await message.answer("Wrong login or password. Deletion cancelled.")
+        await state.clear()
+        return
+
+    deleted_login = user.username
+
+    try:
+        session.delete(user)
+        session.commit()
+    except Exception:
+        logger.exception("Error during account deletion")
+        session.rollback()
+        await message.answer("Error during account deletion. Try again later.")
+        await state.clear()
+        return
+
+    await state.clear()
+    await message.answer(
+        f"Account '{deleted_login}' was deleted successfully."
     )
 
 
@@ -306,5 +373,7 @@ async def cmd_help(message: types.Message):
         "Commands:\n"
         "/start - open the LifeQuest Mini App\n"
         "/login - legacy chat login\n"
-        "/profile - show your RPG profile"
+        "/profile - show your RPG profile\n"
+        "/delete_account - delete an account by login and password\n"
+        "/cancel - cancel the current action"
     )

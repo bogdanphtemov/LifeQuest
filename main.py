@@ -86,6 +86,8 @@ async def set_bot_commands():
         BotCommand(command="start", description="Open the LifeQuest app"),
         BotCommand(command="login", description="Legacy chat login"),
         BotCommand(command="profile", description="View profile"),
+        BotCommand(command="delete_account", description="Delete account"),
+        BotCommand(command="cancel", description="Cancel current action"),
         BotCommand(command="help", description="Get help"),
     ]
     await bot.set_my_commands(commands)
