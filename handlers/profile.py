@@ -12,20 +12,12 @@ router = Router()
 @router.message(Command("profile"))
 async def cmd_profile(message: types.Message, state: FSMContext, session: Session):
     """Handle /profile command"""
-    data = await state.get_data()
-    authenticated_user_id = data.get("authenticated_user_id")
-
-    if not authenticated_user_id:
-        await message.answer("Please log in first with /start or /login.")
-        return
-
     user = session.execute(
-        select(User).where(User.id == authenticated_user_id)
+        select(User).where(User.telegram_id == message.from_user.id)
     ).scalar_one_or_none()
 
-    if not user or user.telegram_id != message.from_user.id:
-        await state.clear()
-        await message.answer("Session expired. Please log in again with /start.")
+    if not user:
+        await message.answer("Open the app with /start and create your character first.")
         return
 
     await message.answer(

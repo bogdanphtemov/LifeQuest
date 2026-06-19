@@ -15,14 +15,11 @@ function switchToAuthScreen() {
     document.getElementById('game-screen').classList.remove('active');
     
     // Clear forms
-    document.getElementById('login-username').value = '';
-    document.getElementById('login-password').value = '';
     document.getElementById('reg-username').value = '';
-    document.getElementById('reg-password').value = '';
-    document.getElementById('reg-first-name').value = '';
-    document.getElementById('reg-last-name').value = '';
+    document.getElementById('reg-display-name').value = '';
+    document.getElementById('reg-class').value = 'adventurer';
     
-    // Show login form
+    // Show welcome state
     document.getElementById('login-form').classList.add('active');
     document.getElementById('register-form').classList.remove('active');
 }
@@ -50,12 +47,9 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         const authScreen = document.getElementById('auth-screen');
         if (authScreen.classList.contains('active')) {
-            const loginForm = document.getElementById('login-form');
             const registerForm = document.getElementById('register-form');
             
-            if (loginForm.classList.contains('active')) {
-                loginUser();
-            } else if (registerForm.classList.contains('active')) {
+            if (registerForm.classList.contains('active')) {
                 registerUser();
             }
         }

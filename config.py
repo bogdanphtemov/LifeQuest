@@ -30,5 +30,8 @@ BOT_TOKEN = get_required_secret("BOT_TOKEN")
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bot.db")
 
+# Telegram Mini App URL. In production this must be an HTTPS URL.
+WEB_APP_URL = os.getenv("WEB_APP_URL", "http://localhost:5000").rstrip("/")
+
 # Other settings
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"

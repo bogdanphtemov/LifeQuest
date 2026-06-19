@@ -83,8 +83,8 @@ def migrate_sqlite_schema():
 async def set_bot_commands():
     """Set bot commands"""
     commands = [
-        BotCommand(command="start", description="Start, register, or log in"),
-        BotCommand(command="login", description="Log in to your character"),
+        BotCommand(command="start", description="Open the LifeQuest app"),
+        BotCommand(command="login", description="Legacy chat login"),
         BotCommand(command="profile", description="View profile"),
         BotCommand(command="help", description="Get help"),
     ]

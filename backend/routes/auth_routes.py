@@ -5,9 +5,52 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import select
 import hashlib
 import hmac
+import json
 import os
+from urllib.parse import parse_qsl
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+
+def get_bot_token() -> str:
+    """Read the bot token required to validate Telegram Mini App data."""
+    token = os.getenv('BOT_TOKEN', '').strip()
+    if not token:
+        raise RuntimeError('BOT_TOKEN is not configured')
+    return token
+
+
+def verify_telegram_init_data(init_data: str) -> dict:
+    """Validate Telegram Mini App initData and return the Telegram user."""
+    if not init_data:
+        raise ValueError('Telegram initData is required')
+
+    parsed_data = dict(parse_qsl(init_data, keep_blank_values=True))
+    received_hash = parsed_data.pop('hash', None)
+    if not received_hash:
+        raise ValueError('Telegram initData hash is missing')
+
+    data_check_string = '\n'.join(
+        f'{key}={value}' for key, value in sorted(parsed_data.items())
+    )
+    secret_key = hmac.new(
+        b'WebAppData',
+        get_bot_token().encode('utf-8'),
+        hashlib.sha256,
+    ).digest()
+    calculated_hash = hmac.new(
+        secret_key,
+        data_check_string.encode('utf-8'),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(calculated_hash, received_hash):
+        raise ValueError('Telegram initData signature is invalid')
+
+    if 'user' not in parsed_data:
+        raise ValueError('Telegram user data is missing')
+
+    return json.loads(parsed_data['user'])
 
 
 def normalize_username(username: str) -> str:
@@ -48,10 +91,18 @@ def verify_password(password: str, stored_hash: str | None) -> bool:
         return hmac.compare_digest(legacy_hash, stored_hash)
 
     salt_hex, hash_hex = stored_hash.split('$', 1)
+    if salt_hex == 'telegram':
+        return False
+
+    try:
+        salt = bytes.fromhex(salt_hex)
+    except ValueError:
+        return False
+
     password_hash = hashlib.pbkdf2_hmac(
         'sha256',
         password.encode('utf-8'),
-        bytes.fromhex(salt_hex),
+        salt,
         600_000,
     )
     return hmac.compare_digest(password_hash.hex(), hash_hex)
@@ -75,6 +126,23 @@ def serialize_user(user):
     }
 
 
+def serialize_telegram_user(telegram_user):
+    """Expose only the Telegram user fields needed by the frontend."""
+    return {
+        'id': telegram_user.get('id'),
+        'username': telegram_user.get('username'),
+        'first_name': telegram_user.get('first_name', ''),
+        'last_name': telegram_user.get('last_name', ''),
+        'language_code': telegram_user.get('language_code'),
+        'photo_url': telegram_user.get('photo_url'),
+    }
+
+
+def make_unusable_password_hash() -> str:
+    """Create a password hash value for Telegram-only accounts."""
+    return f"telegram${os.urandom(32).hex()}"
+
+
 def get_session_factory():
     """Get database session from Flask app context"""
     from flask import current_app
@@ -83,6 +151,133 @@ def get_session_factory():
         raise RuntimeError("Database not initialized")
 
     return current_app.session_local
+
+
+@bp.route('/telegram/session', methods=['POST'])
+def telegram_session():
+    """Resolve the current Telegram Mini App session."""
+    from database.users import User
+
+    data = request.get_json() or {}
+
+    try:
+        telegram_user = verify_telegram_init_data(data.get('init_data', ''))
+    except (ValueError, json.JSONDecodeError) as error:
+        return jsonify({
+            'status': 'error',
+            'message': str(error)
+        }), 401
+
+    telegram_id = telegram_user.get('id')
+    if not telegram_id:
+        return jsonify({
+            'status': 'error',
+            'message': 'Telegram user id is missing'
+        }), 401
+
+    try:
+        with get_session_factory()() as session:
+            user = session.execute(
+                select(User).where(User.telegram_id == telegram_id)
+            ).scalar_one_or_none()
+
+            return jsonify({
+                'status': 'success',
+                'registered': user is not None,
+                'telegram_user': serialize_telegram_user(telegram_user),
+                'user': serialize_user(user) if user else None,
+            }), 200
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to resolve Telegram session: {str(e)}'
+        }), 500
+
+
+@bp.route('/telegram/register', methods=['POST'])
+def telegram_register():
+    """Create a Telegram-linked RPG character."""
+    from database.users import User
+
+    data = request.get_json() or {}
+
+    try:
+        telegram_user = verify_telegram_init_data(data.get('init_data', ''))
+    except (ValueError, json.JSONDecodeError) as error:
+        return jsonify({
+            'status': 'error',
+            'message': str(error)
+        }), 401
+
+    telegram_id = telegram_user.get('id')
+    if not telegram_id:
+        return jsonify({
+            'status': 'error',
+            'message': 'Telegram user id is missing'
+        }), 401
+
+    username = normalize_username(data.get('username', ''))
+    display_name = data.get('display_name', '').strip()
+    character_class = data.get('character_class', 'adventurer').strip() or 'adventurer'
+    avatar = data.get('avatar', 'pixel_adventurer').strip() or 'pixel_adventurer'
+
+    validation_error = validate_username(username)
+    if validation_error:
+        return jsonify({
+            'status': 'error',
+            'message': validation_error
+        }), 400
+
+    try:
+        with get_session_factory()() as session:
+            existing_telegram_user = session.execute(
+                select(User).where(User.telegram_id == telegram_id)
+            ).scalar_one_or_none()
+            if existing_telegram_user:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'User already registered',
+                    'user': serialize_user(existing_telegram_user)
+                }), 200
+
+            existing_username = session.execute(
+                select(User).where(User.username == username)
+            ).scalar_one_or_none()
+            if existing_username:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Username already exists'
+                }), 409
+
+            new_user = User(
+                telegram_id=telegram_id,
+                username=username,
+                password_hash=make_unusable_password_hash(),
+                display_name=display_name or telegram_user.get('first_name') or username,
+                first_name=telegram_user.get('first_name', ''),
+                last_name=telegram_user.get('last_name', ''),
+                avatar=avatar,
+                character_class=character_class,
+                level=1,
+                experience=0,
+                coins=0,
+            )
+            session.add(new_user)
+            session.commit()
+            session.refresh(new_user)
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Character created successfully',
+                'user': serialize_user(new_user)
+            }), 201
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Character creation failed: {str(e)}'
+        }), 500
 
 
 @bp.route('/register', methods=['POST'])

@@ -1,6 +1,8 @@
 /* API Communication Module */
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = window.location.protocol === 'file:'
+    ? 'http://localhost:5000/api'
+    : `${window.location.origin}/api`;
 
 class APIClient {
     constructor(baseURL = API_BASE_URL) {
@@ -32,6 +34,28 @@ class APIClient {
     }
 
     // Auth endpoints
+    async telegramSession(initData) {
+        return this.request('/auth/telegram/session', {
+            method: 'POST',
+            body: JSON.stringify({
+                init_data: initData,
+            }),
+        });
+    }
+
+    async telegramRegister(initData, username, displayName, characterClass = 'adventurer') {
+        return this.request('/auth/telegram/register', {
+            method: 'POST',
+            body: JSON.stringify({
+                init_data: initData,
+                username,
+                display_name: displayName,
+                character_class: characterClass,
+                avatar: 'pixel_adventurer',
+            }),
+        });
+    }
+
     async register(username, password, telegramId, firstName = '', lastName = '') {
         return this.request('/auth/register', {
             method: 'POST',

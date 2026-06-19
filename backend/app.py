@@ -3,7 +3,7 @@ LifeQuest Web Server - Flask API for RPG Game
 """
 import os
 import sys
-from flask import Flask, jsonify
+from flask import Flask, abort, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
@@ -16,7 +16,9 @@ from database.users import Base
 
 load_dotenv()
 
-app = Flask(__name__)
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
+
+app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
 CORS(app)
 
 # Configuration
@@ -87,6 +89,25 @@ def health_check():
         'message': 'LifeQuest Web Server is running',
         'version': '0.1.0'
     }), 200
+
+
+@app.route('/', methods=['GET'])
+def serve_frontend():
+    """Serve the Telegram Mini App shell."""
+    return send_from_directory(FRONTEND_DIR, 'index.html')
+
+
+@app.route('/<path:path>', methods=['GET'])
+def serve_static_asset(path):
+    """Serve frontend assets and fall back to the app shell."""
+    if path.startswith('api/'):
+        abort(404)
+
+    target = os.path.join(FRONTEND_DIR, path)
+    if os.path.isfile(target):
+        return send_from_directory(FRONTEND_DIR, path)
+
+    return send_from_directory(FRONTEND_DIR, 'index.html')
 
 
 @app.errorhandler(404)

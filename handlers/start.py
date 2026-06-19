@@ -2,13 +2,16 @@ from aiogram import Router, types
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from config import WEB_APP_URL
 from database.users import User
 import hashlib
 import hmac
 import logging
 import os
+from urllib.parse import urlparse
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -80,10 +83,18 @@ def verify_password(password: str, stored_hash: str | None) -> bool:
         return hmac.compare_digest(legacy_hash, stored_hash)
 
     salt_hex, hash_hex = stored_hash.split("$", 1)
+    if salt_hex == "telegram":
+        return False
+
+    try:
+        salt = bytes.fromhex(salt_hex)
+    except ValueError:
+        return False
+
     password_hash = hashlib.pbkdf2_hmac(
         "sha256",
         password.encode("utf-8"),
-        bytes.fromhex(salt_hex),
+        salt,
         600_000,
     )
     return hmac.compare_digest(password_hash.hex(), hash_hex)
@@ -95,26 +106,48 @@ async def mark_authenticated(state: FSMContext, user: User):
     await state.update_data(authenticated_user_id=user.id)
 
 
+def is_valid_web_app_url(url: str) -> bool:
+    """Check whether Telegram can use the configured Mini App URL."""
+    parsed_url = urlparse(url)
+    return (
+        parsed_url.scheme == "https"
+        and bool(parsed_url.netloc)
+        and " " not in url
+        and "->" not in url
+    )
+
+
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext, session: Session):
-    """Handle /start command"""
-    user = get_user_by_telegram_id(session, message.from_user.id)
-    
-    if user:
-        await message.answer(
-            f"Welcome back, {user.display_name or user.username}!\n\n"
-            "Enter your password to log in:"
+    """Open the Telegram Mini App."""
+    await state.clear()
+
+    if is_valid_web_app_url(WEB_APP_URL):
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Open LifeQuest",
+                        web_app=WebAppInfo(url=WEB_APP_URL),
+                    )
+                ]
+            ]
         )
-        await state.set_state(AuthStates.waiting_for_existing_password)
+        await message.answer(
+            "Welcome to TG BOT RPG!\n\n"
+            "Open the RPG app to create your character, manage quests, and track your progress.",
+            reply_markup=keyboard,
+        )
         return
 
     await message.answer(
         "Welcome to TG BOT RPG!\n\n"
-        "This is a gamified self-development experience.\n"
-        "Let's create your account.\n\n"
-        "Choose a login:"
+        "The Mini App URL is not ready for Telegram yet:\n"
+        f"{WEB_APP_URL}\n\n"
+        "Telegram Mini App buttons require a public HTTPS WEB_APP_URL. "
+        "Put only the HTTPS URL in .env, without the arrow or local address. "
+        "Example: WEB_APP_URL=https://example.ngrok-free.app"
     )
-    await state.set_state(AuthStates.waiting_for_register_username)
 
 
 @router.message(Command("login"))
@@ -271,7 +304,7 @@ async def cmd_help(message: types.Message):
     """Show basic bot commands."""
     await message.answer(
         "Commands:\n"
-        "/start - register or log in\n"
-        "/login - log in to an existing account\n"
+        "/start - open the LifeQuest Mini App\n"
+        "/login - legacy chat login\n"
         "/profile - show your RPG profile"
     )

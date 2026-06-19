@@ -1,29 +1,29 @@
 # TG BOT RPG
 
-Telegram бот для геіміфікації процесу самороз витку в піксельному стилі RPG формату.
+Telegram bot for gamifying self-development in a pixel-style RPG format.
 
-## Опис проекту
+## Project Description
 
-**TG BOT RPG** — це інноваційна програма для мотивації саморозвитку, яка працює повністю на довірі користувача. Бот дозволяє користувачам:
+**TG BOT RPG** is an innovative self-development motivation project built around user trust. The bot allows users to:
 
-- ✨ Створювати власні квести та визначати винагороду
-- 🎮 Розвивати персонажа в пікселевому світі
-- 💰 Заробляти монети та досвід
-- 🏆 Проходити боси та розблоковувати нові локації
-- 🛍️ Купувати косметичні товари та предмети
+- ✨ Create custom quests and define rewards
+- 🎮 Develop a character in a pixel world
+- 💰 Earn coins and experience
+- 🏆 Defeat bosses and unlock new locations
+- 🛍️ Buy cosmetic goods and items
 
-## Переваги
+## Benefits
 
-1. **Легкий доступ** — просто знайти бота в Telegram, не потрібно скачувати додаткову програму
-2. **Широка аудиторія** — працює на Telegram, який є практично в кожного
-3. **Повна свобода** — користувачі самі розробляють свої квести під свої потреби
-4. **Вільний проект** — безкоштовний, відкритий, з можливістю долучитися до розробки
+1. **Easy access** - just find the bot in Telegram; no extra app download is required.
+2. **Broad audience** - runs on Telegram, a platform many users already have.
+3. **Full freedom** - users design quests around their own goals and needs.
+4. **Open project** - free, open, and welcoming to contributors.
 
-## Встановлення
+## Installation
 
-### Вимоги
+### Requirements
 - Python 3.10+
-- Telegram токен бота
+- Telegram bot token
 
 ### Installation Steps
 
@@ -51,12 +51,22 @@ cp .env.example .env
 Add your Telegram token to the `.env` file:
 ```
 BOT_TOKEN=your_telegram_bot_token_here
+WEB_APP_URL=http://localhost:5000
 ```
 Use your own token from [@BotFather](https://t.me/BotFather). Do not paste the real token into source files, README, issues, commits, or pull requests.
 
-5. Run the bot:
+For a real Telegram Mini App, `WEB_APP_URL` must be a public HTTPS URL. For local testing, run the Flask server and expose it with a tunnel such as ngrok or cloudflared, then set `WEB_APP_URL` to that HTTPS address.
+
+5. Run the web/API server:
 ```bash
-python main.py
+python3 backend/app.py
+```
+
+The web app will be available at `http://localhost:5000`.
+
+6. In another terminal, run the Telegram bot:
+```bash
+python3 main.py
 ```
 
 ## Project Structure
@@ -68,6 +78,13 @@ TG_BOT_RPG/
 ├── requirements.txt     # Dependencies
 ├── .env.example         # Configuration example
 ├── .gitignore           # Files to ignore from version control
+├── backend/             # Flask API and Mini App hosting
+│   ├── app.py           # Web/API server
+│   └── routes/          # API routes
+├── frontend/            # Telegram Mini App frontend
+│   ├── index.html       # App shell
+│   ├── css/             # Pixel RPG styling
+│   └── js/              # API, auth, and UI logic
 ├── handlers/            # Bot command handlers
 │   ├── start.py         # /start command
 │   └── profile.py       # User profile
@@ -81,7 +98,8 @@ TG_BOT_RPG/
 - **aiogram** - Framework for working with Telegram API
 - **python-dotenv** - Environment variables management
 - **SQLAlchemy** - ORM for database operations
-- **aiosqlite** - Asynchronous SQLite driver
+- **Flask** - Web/API server for the Telegram Mini App
+- **Flask-Cors** - CORS support for the API
 
 ## Security
 
