@@ -1,3 +1,13 @@
+"""
+Start / Login / Register / Delete — LifeQuest Telegram Bot handlers.
+
+Architecture:
+  - Uses aiogram 3.x Router for modular handler registration.
+  - Receives a pre-injected SQLAlchemy Session via DatabaseMiddleware.
+  - Implements in-memory rate limiting for sensitive operations
+    (login, registration, account deletion) to prevent brute-force attacks.
+"""
+
 from aiogram import Router, types
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -11,10 +21,67 @@ import hashlib
 import hmac
 import logging
 import os
+import time
+from collections import defaultdict
 from urllib.parse import urlparse
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# In-memory rate limiting (per-user-ID sliding window)
+# ---------------------------------------------------------------------------
+# Ключ — telegram_id користувача, значення — список timestamp-ів спроб.
+_login_attempts: dict[int, list[float]] = defaultdict(list)
+
+MAX_LOGIN_ATTEMPTS = 5          # Максимум невдалих спроб
+LOGIN_WINDOW_SECONDS = 300      # Вікно часу — 5 хвилин
+
+
+def _is_login_rate_limited(user_id: int) -> bool:
+    """
+    Перевіряє, чи перевищено ліміт спроб логіну для користувача.
+
+    Видаляє прострочені спроби (старі за LOGIN_WINDOW_SECONDS) і додає нову.
+    Повертає True, якщо ліміт вичерпано.
+    """
+    now = time.time()
+    attempts = _login_attempts[user_id]
+    # Залишаємо тільки ті спроби, що ще у вікні
+    _login_attempts[user_id] = [t for t in attempts if now - t < LOGIN_WINDOW_SECONDS]
+
+    if len(_login_attempts[user_id]) >= MAX_LOGIN_ATTEMPTS:
+        return True
+
+    _login_attempts[user_id].append(now)
+    return False
+
+
+def _reset_login_attempts(user_id: int) -> None:
+    """Очистити лічильник спроб після успішного логіну."""
+    _login_attempts.pop(user_id, None)
+
+# ---------------------------------------------------------------------------
+
+# Rate limit на реєстрацію (окремий лічильник)
+_register_attempts: dict[int, list[float]] = defaultdict(list)
+MAX_REGISTER_ATTEMPTS = 3
+REGISTER_WINDOW_SECONDS = 3600  # 1 година
+
+
+def _is_register_rate_limited(user_id: int) -> bool:
+    """Перевіряє ліміт спроб реєстрації."""
+    now = time.time()
+    attempts = _register_attempts[user_id]
+    _register_attempts[user_id] = [t for t in attempts if now - t < REGISTER_WINDOW_SECONDS]
+
+    if len(_register_attempts[user_id]) >= MAX_REGISTER_ATTEMPTS:
+        return True
+
+    _register_attempts[user_id].append(now)
+    return False
+
+# ---------------------------------------------------------------------------
 
 
 class AuthStates(StatesGroup):
@@ -221,7 +288,18 @@ async def process_existing_password(
     session: Session,
 ):
     """Authorize an existing Telegram-linked user."""
-    user = get_user_by_telegram_id(session, message.from_user.id)
+    user_id = message.from_user.id
+
+    # ---- Rate limit check ----
+    if _is_login_rate_limited(user_id):
+        await message.answer(
+            "⛔ Too many login attempts. Please wait 5 minutes and try again."
+        )
+        logger.warning(f"Rate limit hit: user {user_id} exceeded login attempts")
+        return
+    # -------------------------
+
+    user = get_user_by_telegram_id(session, user_id)
     if not user:
         await message.answer("Account was not found. Use /start to register.")
         await state.clear()
@@ -230,6 +308,9 @@ async def process_existing_password(
     if not verify_password(message.text or "", user.password_hash):
         await message.answer("Wrong password. Try again or use /start.")
         return
+
+    # Успішний логін — скинути лічильник
+    _reset_login_attempts(user_id)
 
     await mark_authenticated(state, user)
     await message.answer(
@@ -256,6 +337,17 @@ async def process_login_username(message: types.Message, state: FSMContext, sess
 @router.message(AuthStates.waiting_for_login_password)
 async def process_login_password(message: types.Message, state: FSMContext, session: Session):
     """Authorize by username and password."""
+    user_id = message.from_user.id
+
+    # ---- Rate limit check ----
+    if _is_login_rate_limited(user_id):
+        await message.answer(
+            "⛔ Too many login attempts. Please wait 5 minutes and try again."
+        )
+        logger.warning(f"Rate limit hit: user {user_id} exceeded login attempts")
+        return
+    # -------------------------
+
     data = await state.get_data()
     user = get_user_by_login(session, data.get("login", ""))
 
@@ -272,6 +364,9 @@ async def process_login_password(message: types.Message, state: FSMContext, sess
     if user.telegram_id != message.from_user.id:
         user.telegram_id = message.from_user.id
         session.commit()
+
+    # Успішний логін — скинути лічильник
+    _reset_login_attempts(user_id)
 
     await mark_authenticated(state, user)
     await message.answer(
@@ -307,6 +402,17 @@ async def process_delete_username(message: types.Message, state: FSMContext, ses
 @router.message(AuthStates.waiting_for_delete_password)
 async def process_delete_password(message: types.Message, state: FSMContext, session: Session):
     """Delete an account after login and password confirmation."""
+    user_id = message.from_user.id
+
+    # ---- Rate limit check (також захищаємо видалення) ----
+    if _is_login_rate_limited(user_id):
+        await message.answer(
+            "⛔ Too many attempts. Please wait 5 minutes and try again."
+        )
+        logger.warning(f"Rate limit hit: user {user_id} exceeded delete attempts")
+        return
+    # ------------------------------------------------------
+
     data = await state.get_data()
     login = data.get("delete_login", "")
     user = get_user_by_login(session, login)
@@ -336,6 +442,7 @@ async def process_delete_password(message: types.Message, state: FSMContext, ses
         return
 
     await state.clear()
+    _reset_login_attempts(user_id)
     await message.answer(
         f"Account '{deleted_login}' was deleted successfully."
     )
@@ -344,6 +451,18 @@ async def process_delete_password(message: types.Message, state: FSMContext, ses
 @router.message(AuthStates.waiting_for_register_username)
 async def process_register_username(message: types.Message, state: FSMContext, session: Session):
     """Process registration username input."""
+    user_id = message.from_user.id
+
+    # ---- Rate limit check for registration ----
+    if _is_register_rate_limited(user_id):
+        await message.answer(
+            "⛔ You have reached the maximum number of registration attempts "
+            "for today. Please try again later."
+        )
+        logger.warning(f"Rate limit hit: user {user_id} exceeded register attempts")
+        return
+    # -------------------------------------------
+
     login = normalize_username(message.text or "")
     validation_error = validate_username(login)
     if validation_error:

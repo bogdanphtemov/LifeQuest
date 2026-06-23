@@ -5,6 +5,8 @@ import os
 import sys
 from flask import Flask, abort, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -20,6 +22,18 @@ FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'fr
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
 CORS(app)
+
+# --- Rate Limiter ---
+# Використовуємо in-memory storage (для SQLite/dev підходить).
+# Для продакшну з PostgreSQL варто використати Redis:
+#   storage_uri="redis://localhost:6379"
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+    enabled=True,
+)
 
 # Configuration
 app.config['ENV'] = os.getenv('ENV', 'development')
@@ -42,36 +56,12 @@ def init_db():
         expire_on_commit=False,
     )
     Base.metadata.create_all(bind=app.engine)
-    migrate_sqlite_schema()
+    # Apply Alembic migrations (безпечні DDL замість сирого SQL)
+    from alembic.config import Config
+    from alembic import command
+    alembic_cfg = Config(os.path.join(os.path.dirname(__file__), '..', 'alembic.ini'))
+    command.upgrade(alembic_cfg, 'head')
 
-
-def migrate_sqlite_schema():
-    """Add missing SQLite columns for existing local development databases."""
-    if app.engine is None or app.engine.dialect.name != 'sqlite':
-        return
-
-    inspector = inspect(app.engine)
-    if 'users' not in inspector.get_table_names():
-        return
-
-    existing_columns = {column['name'] for column in inspector.get_columns('users')}
-    migrations = {
-        'password_hash': 'ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)',
-        'display_name': 'ALTER TABLE users ADD COLUMN display_name VARCHAR(255)',
-        'avatar': (
-            "ALTER TABLE users ADD COLUMN avatar VARCHAR(64) "
-            "DEFAULT 'pixel_adventurer'"
-        ),
-        'character_class': (
-            "ALTER TABLE users ADD COLUMN character_class VARCHAR(64) "
-            "DEFAULT 'adventurer'"
-        ),
-    }
-
-    with app.engine.begin() as connection:
-        for column_name, statement in migrations.items():
-            if column_name not in existing_columns:
-                connection.execute(text(statement))
 
 
 # Import routes
