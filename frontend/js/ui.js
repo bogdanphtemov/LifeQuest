@@ -1,4 +1,15 @@
-/* UI Management Module */
+/* UI Management Module
+
+   This module handles screen transitions (auth ↔ game), form switching
+   (login ↔ register), and player info updates. All DOM event listeners
+   are registered here as an alternative to inline onclick handlers in the
+   HTML — this improves CSP compliance, testability, and keeps concerns
+   separated.
+*/
+
+// =========================================================================
+// Screen switching functions (called from auth.js and event listeners)
+// =========================================================================
 
 function switchToRegister() {
     document.getElementById('login-form').classList.remove('active');
@@ -42,16 +53,45 @@ function updatePlayerInfo() {
     document.getElementById('player-coins').textContent = user.coins || 0;
 }
 
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        const authScreen = document.getElementById('auth-screen');
-        if (authScreen.classList.contains('active')) {
-            const registerForm = document.getElementById('register-form');
-            
-            if (registerForm.classList.contains('active')) {
-                registerUser();
+// =========================================================================
+// Event listeners — bound after DOM is ready
+// =========================================================================
+
+document.addEventListener('DOMContentLoaded', function () {
+    // "Create Character" button — shown by auth.js after Telegram session resolves
+    const createButton = document.getElementById('create-character-button');
+    if (createButton) {
+        createButton.addEventListener('click', switchToRegister);
+    }
+
+    // "Enter the Realm" (register confirmation)
+    const registerButton = document.getElementById('register-button');
+    if (registerButton) {
+        registerButton.addEventListener('click', registerUser);
+    }
+
+    // "Back" button (from register form to welcome/login)
+    const backButton = document.getElementById('back-button');
+    if (backButton) {
+        backButton.addEventListener('click', switchToLogin);
+    }
+
+    // "Logout" button (game screen)
+    const logoutButton = document.getElementById('logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', logout);
+    }
+
+    // Keyboard shortcuts — Enter triggers registration when on the register form
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            const authScreen = document.getElementById('auth-screen');
+            if (authScreen && authScreen.classList.contains('active')) {
+                const registerForm = document.getElementById('register-form');
+                if (registerForm && registerForm.classList.contains('active')) {
+                    registerUser();
+                }
             }
         }
-    }
+    });
 });

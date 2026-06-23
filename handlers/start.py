@@ -1,3 +1,18 @@
+"""
+Telegram bot command and callback handlers for authentication and onboarding.
+
+This module defines all handlers related to user registration, login (via
+username/password), account deletion, and the main /start command that opens
+the LifeQuest Mini App. It uses aiogram's FSM (Finite State Machine) to manage
+multi-step conversational flows, and SQLAlchemy sessions (injected by the
+DatabaseMiddleware from main.py) for all database operations.
+
+Module-level dependencies:
+- router (aiogram.Router): Registered in main.py with dp.include_router().
+- AuthStates (StatesGroup): Defines all FSM states used across these flows.
+- Each handler receives a `session: Session` kwarg via middleware injection.
+"""
+
 from aiogram import Router, types
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -18,7 +33,12 @@ logger = logging.getLogger(__name__)
 
 
 class AuthStates(StatesGroup):
-    """Authorization states"""
+    """
+    FSM states for multi-step authentication and account deletion flows.
+
+    Each state corresponds to a step where the bot waits for user text input.
+    The flow transitions between states via @router.message(state) handlers.
+    """
     waiting_for_register_username = State()
     waiting_for_register_password = State()
     waiting_for_existing_password = State()
@@ -29,7 +49,11 @@ class AuthStates(StatesGroup):
 
 
 def get_user_by_telegram_id(session: Session, telegram_id: int) -> User | None:
-    """Get user by telegram ID"""
+    """
+    Look up a user by their Telegram user ID.
+
+    Used to detect whether an existing Telegram user is already registered.
+    """
     result = session.execute(
         select(User).where(User.telegram_id == telegram_id)
     )
@@ -37,7 +61,12 @@ def get_user_by_telegram_id(session: Session, telegram_id: int) -> User | None:
 
 
 def get_user_by_login(session: Session, login: str) -> User | None:
-    """Get user by login"""
+    """
+    Look up a user by their normalized username (case-insensitive, trimmed).
+
+    Supports both bare usernames and "@username" format by including both in
+    the lookup set.
+    """
     normalized_login = normalize_username(login)
     username_column = func.lower(func.trim(User.username))
     result = session.execute(
@@ -49,12 +78,19 @@ def get_user_by_login(session: Session, login: str) -> User | None:
 
 
 def normalize_username(username: str) -> str:
-    """Normalize username for consistent login lookup."""
+    """Normalize a username for consistent lookup: strip whitespace,
+    remove leading '@', and convert to lowercase."""
     return username.strip().lstrip("@").lower()
 
 
 def validate_username(username: str) -> str | None:
-    """Return an error message when username is invalid."""
+    """
+    Validate a proposed username and return an error message if invalid.
+
+    Rules:
+    - Must be between 3 and 20 characters.
+    - May only contain letters, digits, hyphens, and underscores.
+    """
     if len(username) < 3:
         return "Login must be at least 3 characters. Try again:"
 
@@ -68,7 +104,12 @@ def validate_username(username: str) -> str | None:
 
 
 def hash_password(password: str) -> str:
-    """Hash password using PBKDF2-HMAC with a per-user salt."""
+    """
+    Hash a password using PBKDF2-HMAC-SHA256 with a random 16-byte salt.
+
+    Output format: "<salt_hex>$<hash_hex>" — stored in User.password_hash.
+    Uses 600 000 iterations for reasonable brute-force resistance.
+    """
     salt = os.urandom(16)
     password_hash = hashlib.pbkdf2_hmac(
         "sha256",
@@ -80,7 +121,14 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, stored_hash: str | None) -> bool:
-    """Verify a password against supported stored hash formats."""
+    """
+    Verify a password against its stored hash.
+
+    Supports two formats:
+    - New format: "<salt_hex>$<hash_hex>" (PBKDF2-HMAC-SHA256).
+    - Legacy format: plain SHA256 hex string (used before migration).
+    Returns False for None, empty strings, or "telegram$..." placeholders.
+    """
     if not stored_hash:
         return False
 
@@ -107,13 +155,23 @@ def verify_password(password: str, stored_hash: str | None) -> bool:
 
 
 async def mark_authenticated(state: FSMContext, user: User):
-    """Store the authenticated user id in FSM state data."""
+    """
+    Persist a successful authentication in the FSM state.
+
+    Clears any previous state data, then stores the authenticated user's
+    primary key so other handlers (e.g. /profile) can identify the user.
+    """
     await state.clear()
     await state.update_data(authenticated_user_id=user.id)
 
 
 def is_valid_web_app_url(url: str) -> bool:
-    """Check whether Telegram can use the configured Mini App URL."""
+    """
+    Validate that a URL is suitable for use as a Telegram Mini App button.
+
+    Telegram requires Mini App buttons to point to a public HTTPS endpoint
+    without spaces or '->' (which appear in ngrok forwarding strings).
+    """
     parsed_url = urlparse(url)
     return (
         parsed_url.scheme == "https"
@@ -124,7 +182,13 @@ def is_valid_web_app_url(url: str) -> bool:
 
 
 def build_start_keyboard() -> InlineKeyboardMarkup:
-    """Build the main bot action keyboard."""
+    """
+    Build the inline keyboard for the /start command.
+
+    Includes:
+    - "Open LifeQuest" button that launches the Telegram Mini App (if configured).
+    - "Delete account" button that triggers the deletion flow via callback.
+    """
     buttons = []
 
     if is_valid_web_app_url(WEB_APP_URL):
@@ -146,7 +210,12 @@ def build_start_keyboard() -> InlineKeyboardMarkup:
 
 
 async def start_delete_account_flow(message: types.Message, state: FSMContext):
-    """Ask for account login before deletion."""
+    """
+    Shared entry point for account deletion, used by both /delete_account
+    command and the "Delete account" inline button callback.
+
+    Clears state and prompts for the account login.
+    """
     await state.clear()
     await message.answer(
         "Account deletion started.\n\n"
@@ -155,9 +224,19 @@ async def start_delete_account_flow(message: types.Message, state: FSMContext):
     await state.set_state(AuthStates.waiting_for_delete_username)
 
 
+# ---------------------------------------------------------------------------
+# Command handlers
+# ---------------------------------------------------------------------------
+
+
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext, session: Session):
-    """Open the Telegram Mini App."""
+    """
+    Handle the /start command — the main entry point for new and returning users.
+
+    Clears any ongoing FSM conversation and presents the Mini App launch button.
+    If WEB_APP_URL is not a valid HTTPS URL, shows a configuration hint instead.
+    """
     await state.clear()
 
     if is_valid_web_app_url(WEB_APP_URL):
@@ -181,7 +260,13 @@ async def cmd_start(message: types.Message, state: FSMContext, session: Session)
 
 @router.message(Command("login"))
 async def cmd_login(message: types.Message, state: FSMContext, session: Session):
-    """Start login flow."""
+    """
+    Handle the /login command — start the legacy username/password login flow.
+
+    Two scenarios:
+    - User already has a Telegram-linked account: ask for password directly.
+    - User is not yet linked: ask for a login first.
+    """
     user = get_user_by_telegram_id(session, message.from_user.id)
     
     if user:
@@ -195,23 +280,36 @@ async def cmd_login(message: types.Message, state: FSMContext, session: Session)
 
 @router.message(Command("cancel"))
 async def cmd_cancel(message: types.Message, state: FSMContext):
-    """Cancel the current chat flow."""
+    """
+    Handle the /cancel command — abort any ongoing multi-step flow.
+
+    Clears the FSM state and resets the conversation back to the idle state.
+    """
     await state.clear()
     await message.answer("Current action cancelled.")
 
 
 @router.message(Command("delete_account"))
 async def cmd_delete_account(message: types.Message, state: FSMContext):
-    """Start account deletion flow."""
+    """Handle the /delete_account command — start account deletion flow."""
     await start_delete_account_flow(message, state)
 
 
 @router.callback_query(lambda callback: callback.data == "delete_account")
 async def callback_delete_account(callback: types.CallbackQuery, state: FSMContext):
-    """Start account deletion flow from the inline menu button."""
+    """
+    Handle the "Delete account" inline button press.
+
+    Routes to the same deletion flow as the /delete_account command.
+    """
     await callback.answer()
     if callback.message:
         await start_delete_account_flow(callback.message, state)
+
+
+# ---------------------------------------------------------------------------
+# FSM step handlers — Login flow
+# ---------------------------------------------------------------------------
 
 
 @router.message(AuthStates.waiting_for_existing_password)
@@ -220,7 +318,13 @@ async def process_existing_password(
     state: FSMContext,
     session: Session,
 ):
-    """Authorize an existing Telegram-linked user."""
+    """
+    FSM step: verify password for a user who already has a Telegram-linked account.
+
+    Entered from /login when the user's Telegram ID is already in the database.
+    On success, calls mark_authenticated() and confirms login.
+    On failure, stays in this state to allow retry.
+    """
     user = get_user_by_telegram_id(session, message.from_user.id)
     if not user:
         await message.answer("Account was not found. Use /start to register.")
@@ -240,7 +344,12 @@ async def process_existing_password(
 
 @router.message(AuthStates.waiting_for_login_username)
 async def process_login_username(message: types.Message, state: FSMContext, session: Session):
-    """Process login username for unlinked Telegram accounts."""
+    """
+    FSM step: collect the username for a non-linked Telegram user.
+
+    Validates that the username exists in the database.
+    On success, transitions to waiting_for_login_password.
+    """
     login = normalize_username(message.text or "")
     user = get_user_by_login(session, login)
     
@@ -255,7 +364,12 @@ async def process_login_username(message: types.Message, state: FSMContext, sess
 
 @router.message(AuthStates.waiting_for_login_password)
 async def process_login_password(message: types.Message, state: FSMContext, session: Session):
-    """Authorize by username and password."""
+    """
+    FSM step: verify password and complete the login for a non-linked user.
+
+    On success, links the Telegram ID to the account (if not already linked
+    to another user) and calls mark_authenticated().
+    """
     data = await state.get_data()
     user = get_user_by_login(session, data.get("login", ""))
 
@@ -280,9 +394,19 @@ async def process_login_password(message: types.Message, state: FSMContext, sess
     )
 
 
+# ---------------------------------------------------------------------------
+# FSM step handlers — Account deletion flow
+# ---------------------------------------------------------------------------
+
+
 @router.message(AuthStates.waiting_for_delete_username)
 async def process_delete_username(message: types.Message, state: FSMContext, session: Session):
-    """Store username for account deletion."""
+    """
+    FSM step: collect the username for account deletion.
+
+    Validates that the account exists and is not linked to another Telegram user.
+    On success, transitions to waiting_for_delete_password.
+    """
     login = normalize_username(message.text or "")
     user = get_user_by_login(session, login)
 
@@ -306,7 +430,12 @@ async def process_delete_username(message: types.Message, state: FSMContext, ses
 
 @router.message(AuthStates.waiting_for_delete_password)
 async def process_delete_password(message: types.Message, state: FSMContext, session: Session):
-    """Delete an account after login and password confirmation."""
+    """
+    FSM step: verify password and permanently delete the user account.
+
+    Performs a final verification, then deletes the User row from the database.
+    On any error, rolls back the transaction and notifies the user.
+    """
     data = await state.get_data()
     login = data.get("delete_login", "")
     user = get_user_by_login(session, login)
@@ -341,9 +470,18 @@ async def process_delete_password(message: types.Message, state: FSMContext, ses
     )
 
 
+# ---------------------------------------------------------------------------
+# FSM step handlers — Registration flow (if triggered by external /start logic)
+# ---------------------------------------------------------------------------
+
+
 @router.message(AuthStates.waiting_for_register_username)
 async def process_register_username(message: types.Message, state: FSMContext, session: Session):
-    """Process registration username input."""
+    """
+    FSM step: collect and validate a new username during registration.
+
+    Checks uniqueness and format rules. On success, transitions to password input.
+    """
     login = normalize_username(message.text or "")
     validation_error = validate_username(login)
     if validation_error:
@@ -367,7 +505,13 @@ async def process_register_username(message: types.Message, state: FSMContext, s
 
 @router.message(AuthStates.waiting_for_register_password)
 async def process_register_password(message: types.Message, state: FSMContext, session: Session):
-    """Create a new user account."""
+    """
+    FSM step: finalise user registration with password and create the database record.
+
+    Creates a new User row with the Telegram ID, hashed password, and default
+    RPG attributes. On completion, calls mark_authenticated() so the user is
+    immediately logged in.
+    """
     password = message.text or ""
     
     if len(password) < 6:
@@ -410,9 +554,14 @@ async def process_register_password(message: types.Message, state: FSMContext, s
         await state.clear()
 
 
+# ---------------------------------------------------------------------------
+# Utility command
+# ---------------------------------------------------------------------------
+
+
 @router.message(Command("help"))
 async def cmd_help(message: types.Message):
-    """Show basic bot commands."""
+    """Handle the /help command — list all available bot commands."""
     await message.answer(
         "Commands:\n"
         "/start - open the LifeQuest Mini App\n"

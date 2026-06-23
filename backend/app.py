@@ -1,6 +1,29 @@
 """
-LifeQuest Web Server - Flask API for RPG Game
+LifeQuest Web Server — Flask API for the Telegram Mini App.
+
+This module is the entry point of the Flask web application that powers the
+Telegram Mini App frontend. It configures the Flask app, initialises the
+database (via SQLAlchemy), registers API blueprints, serves static frontend
+assets, and handles top-level error responses.
+
+Architectural overview:
+- Flask serves a single-page application (SPA) from the frontend/ directory.
+- API routes are grouped under Blueprints (e.g. /api/auth/*) defined in
+  backend/routes/.
+- The database engine and session factory are attached to app.engine and
+  app.session_local so they are accessible to route modules via Flask's
+  current_app proxy.
+- The same SQLAlchemy User model (database/users.py) is shared with the
+  Telegram bot (main.py), ensuring data consistency.
+
+Note on project structure:
+- backend/app.py uses sys.path.insert to allow importing shared modules
+  (database/, config.py) from the project root. This is a recognised
+  anti-pattern; a production-ready solution would use a setup.py /
+  pyproject.toml installable package or PYTHONPATH. For a development
+  pet project this approach is pragmatic.
 """
+
 import os
 import sys
 from flask import Flask, abort, jsonify, send_from_directory
@@ -9,13 +32,18 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
-# Add parent directory to path for imports
+# Prepend the project root to sys.path so that shared modules (config.py,
+# database/, handlers/) can be imported consistently from both the bot
+# (main.py) and the web server (backend/app.py).
+# In a production setup this would be replaced by an installable package.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.users import Base
 
 load_dotenv()
 
+# Absolute path to the frontend directory, used for serving static assets
+# and the SPA entry point (index.html).
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
@@ -28,13 +56,21 @@ app.config['DEBUG'] = os.getenv('DEBUG', 'True').lower() == 'true'
 # Database setup
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./bot.db')
 
-# Store session maker for use in routes
+# Placeholders — populated by init_db() before routes are used.
+# Stored on the app object so route blueprints can retrieve them via
+# current_app.session_local. See backend/routes/auth_routes.py's
+# get_session_factory() for the consumer side.
 app.engine = None
 app.session_local = None
 
 
 def init_db():
-    """Initialize database connection"""
+    """
+    Create the database engine and session factory, and ensure all tables
+    (including the shared User model) exist.
+
+    Call this once at startup before registering blueprints or handling requests.
+    """
     app.engine = create_engine(DATABASE_URL, echo=False)
     app.session_local = sessionmaker(
         bind=app.engine,
@@ -46,7 +82,17 @@ def init_db():
 
 
 def migrate_sqlite_schema():
-    """Add missing SQLite columns for existing local development databases."""
+    """
+    Apply additive migrations to an existing SQLite database.
+
+    During development the User model gained new columns (password_hash,
+    display_name, avatar, character_class). This function checks the current
+    schema and adds any missing columns, allowing local SQLite databases to
+    work without a full migration framework.
+
+    This is a no-op for non-SQLite databases and for fresh databases whose
+    schema is already up to date.
+    """
     if app.engine is None or app.engine.dialect.name != 'sqlite':
         return
 
@@ -83,7 +129,12 @@ app.register_blueprint(auth_routes.bp)
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """
+    Health-check endpoint.
+
+    Returns a simple JSON response confirming the server is alive. Useful for
+    monitoring and for verifying that the Flask app starts without errors.
+    """
     return jsonify({
         'status': 'ok',
         'message': 'LifeQuest Web Server is running',
@@ -93,26 +144,45 @@ def health_check():
 
 @app.route('/', methods=['GET'])
 def serve_frontend():
-    """Serve the Telegram Mini App shell."""
+    """Serve the Telegram Mini App entry point (index.html)."""
     return send_from_directory(FRONTEND_DIR, 'index.html')
 
 
 @app.route('/<path:path>', methods=['GET'])
 def serve_static_asset(path):
-    """Serve frontend assets and fall back to the app shell."""
+    """
+    Serve frontend static assets (CSS, JS, images) with SPA fallback.
+
+    Security: path traversal is mitigated by normalising the path and
+    verifying it does not escape FRONTEND_DIR before passing it to
+    send_from_directory (which itself uses Flask's safe_join internally).
+
+    Behaviour:
+    - If the requested path begins with 'api/', abort with 404 (API routes
+      are handled by blueprints, not by this catch-all).
+    - If the normalised path stays within FRONTEND_DIR and matches an actual
+      file, serve it.
+    - Otherwise, serve index.html (SPA fallback — the frontend router
+      handles client-side navigation).
+    """
     if path.startswith('api/'):
         abort(404)
 
-    target = os.path.join(FRONTEND_DIR, path)
-    if os.path.isfile(target):
-        return send_from_directory(FRONTEND_DIR, path)
+    # Guard against path traversal attacks (e.g. /../../../etc/passwd).
+    safe_path = os.path.normpath('/' + path).lstrip('/')
+    target = os.path.join(FRONTEND_DIR, safe_path)
+    real_target = os.path.realpath(target)
+    real_frontend = os.path.realpath(FRONTEND_DIR)
+
+    if os.path.isfile(target) and real_target.startswith(real_frontend):
+        return send_from_directory(FRONTEND_DIR, safe_path)
 
     return send_from_directory(FRONTEND_DIR, 'index.html')
 
 
 @app.errorhandler(404)
 def not_found(error):
-    """Handle 404 errors"""
+    """Return a JSON error for 404 (endpoint not found)."""
     return jsonify({
         'status': 'error',
         'message': 'Endpoint not found'
@@ -121,7 +191,7 @@ def not_found(error):
 
 @app.errorhandler(500)
 def internal_error(error):
-    """Handle 500 errors"""
+    """Return a JSON error for 500 (internal server error)."""
     return jsonify({
         'status': 'error',
         'message': 'Internal server error'
@@ -129,7 +199,13 @@ def internal_error(error):
 
 
 def run_server():
-    """Run Flask server"""
+    """
+    Initialise the database and start the Flask development server.
+
+    The server binds to 0.0.0.0 so it is reachable from outside the container
+    (e.g. via ngrok for Telegram Mini App development). The port defaults to
+    5000 and can be overridden with the PORT environment variable.
+    """
     init_db()
     
     port = int(os.getenv('PORT', 5000))

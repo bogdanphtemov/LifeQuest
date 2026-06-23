@@ -6,89 +6,150 @@
     <title>LifeQuest - RPG Game</title>
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/pixel-fonts.css">
+    <link rel="stylesheet" href="css/pixel-scene.css">
     <link rel="stylesheet" href="css/dark-fantasy.css">
 </head>
 <body>
     <div class="container">
-        <!-- Main Game Container -->
         <div id="app" class="app">
             <!-- Auth Screen -->
             <div id="auth-screen" class="screen auth-screen active">
-                <div class="auth-container">
-                    <div class="auth-header">
-                        <h1 class="game-title">⚔️ LIFE QUEST ⚔️</h1>
-                        <p class="game-subtitle">"Choose Your Destiny"</p>
+                <!-- Pixel art landscape background -->
+                <div class="pixel-scene" aria-hidden="true">
+                    <div class="pixel-sky"></div>
+                    <div class="pixel-sun"></div>
+                    <div class="pixel-cloud pixel-cloud-1"></div>
+                    <div class="pixel-cloud pixel-cloud-2"></div>
+
+                    <div class="pixel-hills">
+                        <div class="pixel-hill pixel-hill-far"></div>
+                        <div class="pixel-hill pixel-hill-near"></div>
                     </div>
 
-                    <!-- Welcome State -->
-                    <div id="login-form" class="form-container active">
-                        <h2 class="form-title">⚔️ AWAKENING PORTAL ⚔️</h2>
-                        <p id="welcome-message" class="welcome-message">
-                            Opening the guild gates...
-                        </p>
-
-                        <div class="form-group">
-                            <button id="create-character-button" class="btn btn-primary" onclick="switchToRegister()" hidden>
-                                → CREATE CHARACTER ←
-                            </button>
+                    <div class="pixel-village">
+                        <div class="pixel-house pixel-house-left">
+                            <div class="house-roof"></div>
+                            <div class="house-body">
+                                <div class="house-window"></div>
+                                <div class="house-door"></div>
+                            </div>
                         </div>
 
-                        <div id="login-error" class="error-message"></div>
+                        <div class="pixel-windmill">
+                            <div class="windmill-blades"></div>
+                            <div class="windmill-tower"></div>
+                        </div>
+
+                        <div class="pixel-house pixel-house-right">
+                            <div class="house-roof"></div>
+                            <div class="house-body">
+                                <div class="house-window"></div>
+                                <div class="house-door"></div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Register Form -->
-                    <div id="register-form" class="form-container">
-                        <h2 class="form-title">⚔️ CREATE CHARACTER ⚔️</h2>
-                        
-                        <div class="form-group">
-                            <label for="reg-username" class="form-label">Username:</label>
-                            <input 
-                                type="text" 
-                                id="reg-username" 
-                                class="form-input pixel-input"
-                                placeholder="3-20 characters..."
-                                maxlength="20"
-                            >
-                            <small class="form-hint">Only letters, numbers, -, _</small>
+                    <div class="pixel-wheat-field">
+                        <div class="wheat-row"></div>
+                        <div class="wheat-stalks"></div>
+                        <div class="wheat-stalks wheat-stalks-2"></div>
+                        <div class="path-edge path-edge-left"></div>
+                        <div class="path-edge path-edge-right"></div>
+                    </div>
+
+                    <div class="pixel-path"></div>
+
+                    <div class="pixel-walkers">
+                        <div class="pixel-walker walker-1"></div>
+                        <div class="pixel-walker walker-2"></div>
+                        <div class="pixel-walker walker-3"></div>
+                    </div>
+                </div>
+
+                <!-- Wooden sign hanging on chains -->
+                <div class="sign-hanger">
+                    <div class="sign-hook"></div>
+                    <div class="sign-chains">
+                        <div class="sign-chain sign-chain-left"></div>
+                        <div class="sign-chain sign-chain-right"></div>
+                    </div>
+
+                    <div class="wood-sign auth-container">
+                        <div class="wood-sign-plank-lines"></div>
+
+                        <div class="auth-header">
+                            <h1 class="game-title">LIFE QUEST</h1>
+                            <p class="game-subtitle">Choose Your Destiny</p>
                         </div>
 
-                        <div class="form-group">
-                            <label for="reg-display-name" class="form-label">Display Name:</label>
-                            <input 
-                                type="text" 
-                                id="reg-display-name" 
-                                class="form-input pixel-input"
-                                placeholder="Your hero name..."
-                            >
+                        <!-- Welcome / Login State -->
+                        <div id="login-form" class="form-container active">
+                            <h2 class="form-title">Guild Gates</h2>
+                            <p id="welcome-message" class="welcome-message">
+                                Opening the guild gates...
+                            </p>
+
+                            <div class="form-group">
+                                <!-- Hidden by default; shown by auth.js after Telegram session validation -->
+                                <button type="button" id="create-character-button" class="btn btn-primary" hidden>
+                                    Create Character
+                                </button>
+                            </div>
+
+                            <div id="login-error" class="error-message"></div>
                         </div>
 
-                        <div class="form-group">
-                            <label for="reg-class" class="form-label">Class:</label>
-                            <select
-                                id="reg-class"
-                                class="form-input pixel-input"
-                            >
-                                <option value="adventurer">Adventurer</option>
-                                <option value="warrior">Warrior</option>
-                                <option value="mage">Mage</option>
-                                <option value="ranger">Ranger</option>
-                            </select>
-                        </div>
+                        <!-- Register Form -->
+                        <div id="register-form" class="form-container">
+                            <h2 class="form-title">New Adventurer</h2>
 
-                        <div class="form-group">
-                            <button class="btn btn-success" onclick="registerUser()">
-                                ► ENTER THE REALM ◄
-                            </button>
-                        </div>
+                            <div class="form-group">
+                                <label for="reg-username" class="form-label">Username</label>
+                                <input
+                                    type="text"
+                                    id="reg-username"
+                                    class="form-input pixel-input"
+                                    placeholder="3-20 chars..."
+                                    maxlength="20"
+                                >
+                                <small class="form-hint">Letters, numbers, -, _</small>
+                            </div>
 
-                        <div class="form-group">
-                            <button class="btn btn-secondary" onclick="switchToLogin()">
-                                → BACK ←
-                            </button>
-                        </div>
+                            <div class="form-group">
+                                <label for="reg-display-name" class="form-label">Hero Name</label>
+                                <input
+                                    type="text"
+                                    id="reg-display-name"
+                                    class="form-input pixel-input"
+                                    placeholder="Your hero name..."
+                                >
+                            </div>
 
-                        <div id="register-error" class="error-message"></div>
-                        <div id="register-success" class="success-message"></div>
+                            <div class="form-group">
+                                <label for="reg-class" class="form-label">Class</label>
+                                <select id="reg-class" class="form-input pixel-input" aria-label="Character class">
+                                    <option value="adventurer">Adventurer</option>
+                                    <option value="warrior">Warrior</option>
+                                    <option value="mage">Mage</option>
+                                    <option value="ranger">Ranger</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <button type="button" id="register-button" class="btn btn-success">
+                                    Enter the Realm
+                                </button>
+                            </div>
+
+                            <div class="form-group">
+                                <button type="button" id="back-button" class="btn btn-secondary">
+                                    Back
+                                </button>
+                            </div>
+
+                            <div id="register-error" class="error-message"></div>
+                            <div id="register-success" class="success-message"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -96,12 +157,12 @@
             <!-- Game Screen (after login) -->
             <div id="game-screen" class="screen game-screen">
                 <div class="game-header">
-                    <h1 class="game-title">⚔️ LIFE QUEST ⚔️</h1>
+                    <h1 class="game-title">LIFE QUEST</h1>
                 </div>
 
                 <div class="game-content">
                     <div class="player-panel">
-                        <h2 class="panel-title">PLAYER INFO</h2>
+                        <h2 class="panel-title">Player Info</h2>
                         <div id="player-info" class="player-info">
                             <p>Name: <span id="player-name">-</span></p>
                             <p>Level: <span id="player-level">1</span></p>
@@ -111,13 +172,13 @@
                     </div>
 
                     <div class="game-area">
-                        <h2 class="panel-title">GAME AREA</h2>
-                        <p class="coming-soon">🎮 Coming Soon...</p>
+                        <h2 class="panel-title">Game Area</h2>
+                        <p class="coming-soon">Coming Soon...</p>
                     </div>
 
                     <div class="actions-panel">
-                        <button class="btn btn-secondary" onclick="logout()">
-                            ► LOGOUT ◄
+                        <button type="button" id="logout-button" class="btn btn-secondary">
+                            Logout
                         </button>
                     </div>
                 </div>

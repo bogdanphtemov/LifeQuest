@@ -26,8 +26,12 @@ html, body {
     height: 100%;
     background-color: var(--primary-dark);
     color: var(--text-primary);
-    font-family: 'Arial', sans-serif;
-    overflow: hidden;
+    font-family: var(--font-ui, 'Arial', sans-serif);
+    /* Allow vertical scrolling for Mini App environments where the
+       viewport height may change (e.g. iOS keyboard opening). */
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 body {
@@ -68,20 +72,17 @@ body {
     justify-content: center;
 }
 
-/* Auth Screen */
-.auth-screen {
-    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--secondary-dark) 100%);
-    padding: 40px 20px;
+/* Auth Screen — layout only; visual theme in pixel-scene.css */
+.auth-screen.active {
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
 }
 
 .auth-container {
-    background-color: var(--tertiary-dark);
-    border: 3px solid var(--accent-gold);
-    border-radius: 8px;
-    padding: 40px;
+    position: relative;
     max-width: 500px;
     width: 100%;
-    box-shadow: var(--shadow);
 }
 
 .auth-header {
@@ -154,7 +155,7 @@ body {
     border: 2px solid var(--border-color);
     border-radius: 4px;
     font-size: 14px;
-    font-family: 'Arial', monospace;
+    font-family: var(--font-mono, 'Courier New', 'Consolas', 'Monaco', monospace);
     transition: all 0.3s ease;
 }
 
@@ -183,7 +184,7 @@ body {
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.3s ease;
-    font-family: 'Arial', monospace;
+    font-family: var(--font-pixel, 'Courier New', 'Consolas', 'Monaco', monospace);
     letter-spacing: 1px;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
 }
@@ -272,11 +273,25 @@ body {
 .game-content {
     display: grid;
     grid-template-columns: 250px 1fr 150px;
+    /* Gap fallback: older Safari (< 14.1) does not support gap for grid.
+       Use a negative margin + padding technique as a baseline, then
+       override with the standard gap property for modern browsers. */
     gap: 20px;
     width: 100%;
     height: calc(100% - 80px);
     max-width: 1000px;
     margin: 0 auto;
+}
+
+/* Gap fallback for older Safari (< 14.1) and legacy browsers */
+@supports not (gap: 20px) {
+    .game-content {
+        margin: -10px -10px 0 -10px;
+        width: calc(100% + 20px);
+    }
+    .game-content > * {
+        margin: 10px 10px 0 10px;
+    }
 }
 
 .player-panel,
@@ -328,17 +343,26 @@ body {
     justify-content: flex-start;
 }
 
+/* Gap fallback for older Safari (< 14.1) */
+@supports not (gap: 10px) {
+    .actions-panel > * {
+        margin-bottom: 10px;
+    }
+    .actions-panel > *:last-child {
+        margin-bottom: 0;
+    }
+}
+
 /* Pixel Input Styling */
 .pixel-input {
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-mono, 'Courier New', 'Consolas', 'Monaco', monospace);
     letter-spacing: 1px;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-    .auth-container {
-        padding: 20px;
-        border: 2px solid var(--accent-gold);
+    .auth-screen.active {
+        padding: 16px 10px;
     }
 
     .game-title {
@@ -366,3 +390,4 @@ body {
     opacity: 0.6;
     cursor: not-allowed;
 }
+
