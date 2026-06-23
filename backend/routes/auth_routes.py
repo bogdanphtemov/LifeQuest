@@ -16,14 +16,24 @@ Architectural notes:
 """
 
 from flask import Blueprint, request, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from sqlalchemy import func, select
 import hashlib
 import hmac
 import json
 import os
+import time
 from urllib.parse import parse_qsl
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+# Створюємо limiter для цього blueprint.
+# Використовуємо shared вбудований storage з app (через current_app).
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri="memory://",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -67,6 +77,22 @@ def verify_telegram_init_data(init_data: str) -> dict:
     received_hash = parsed_data.pop('hash', None)
     if not received_hash:
         raise ValueError('Telegram initData hash is missing')
+
+    # === Захист від Replay атак: перевірка часу створення initData ===
+    AUTH_MAX_AGE_SECONDS = 86400  # 24 години (максимальний вік initData)
+
+    auth_date_str = parsed_data.get('auth_date', '')
+    if not auth_date_str:
+        raise ValueError('Telegram initData auth_date is missing')
+
+    try:
+        auth_date = int(auth_date_str)
+    except (ValueError, TypeError):
+        raise ValueError('Telegram initData auth_date is invalid')
+
+    if time.time() - auth_date > AUTH_MAX_AGE_SECONDS:
+        raise ValueError('Telegram initData has expired')
+    # =================================================================
 
     data_check_string = '\n'.join(
         f'{key}={value}' for key, value in sorted(parsed_data.items())
@@ -431,6 +457,7 @@ def telegram_register():
 
 
 @bp.route('/register', methods=['POST'])
+@limiter.limit("5 per minute")
 def register():
     """
     Register a new user with a username and password (legacy flow).
@@ -542,6 +569,7 @@ def register():
 
 
 @bp.route('/login', methods=['POST'])
+@limiter.limit("10 per minute")
 def login():
     """
     Authenticate a user with username and password (legacy flow).
@@ -622,6 +650,7 @@ def login():
 
 
 @bp.route('/account', methods=['DELETE'])
+@limiter.limit("3 per minute")
 def delete_account():
     """
     Permanently delete a user account after confirming username and password.

@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine
 from aiogram import Bot, Dispatcher, BaseMiddleware
 from aiogram.types import BotCommand, Update
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -37,51 +37,32 @@ class DatabaseMiddleware(BaseMiddleware):
         data: Dict[str, Any]
     ) -> Any:
         with SessionLocal() as session:
+            # Share one database session with the current update handler.
             data["session"] = session
             try:
                 return await handler(event, data)
             except Exception:
+                # Roll back failed handler changes before passing the error up.
                 session.rollback()
                 raise
 
 
 def init_db():
     """Initialize database"""
+    # Create tables from SQLAlchemy models if they do not exist yet.
     Base.metadata.create_all(bind=engine)
-    migrate_sqlite_schema()
+    # Apply Alembic migrations (безпечні DDL замість сирого SQL)
+    from alembic.config import Config
+    from alembic import command
+    alembic_cfg = Config('alembic.ini')
+    command.upgrade(alembic_cfg, 'head')
 
 
-def migrate_sqlite_schema():
-    """Add missing SQLite columns for local development databases."""
-    if engine.dialect.name != "sqlite":
-        return
-
-    inspector = inspect(engine)
-    if "users" not in inspector.get_table_names():
-        return
-
-    existing_columns = {column["name"] for column in inspector.get_columns("users")}
-    migrations = {
-        "password_hash": "ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)",
-        "display_name": "ALTER TABLE users ADD COLUMN display_name VARCHAR(255)",
-        "avatar": (
-            "ALTER TABLE users ADD COLUMN avatar VARCHAR(64) "
-            "DEFAULT 'pixel_adventurer'"
-        ),
-        "character_class": (
-            "ALTER TABLE users ADD COLUMN character_class VARCHAR(64) "
-            "DEFAULT 'adventurer'"
-        ),
-    }
-
-    with engine.begin() as connection:
-        for column_name, statement in migrations.items():
-            if column_name not in existing_columns:
-                connection.execute(text(statement))
 
 
 async def set_bot_commands():
     """Set bot commands"""
+    # Register the commands shown in the Telegram bot menu.
     commands = [
         BotCommand(command="start", description="Open the LifeQuest app"),
         BotCommand(command="login", description="Legacy chat login"),
@@ -113,6 +94,7 @@ async def main():
         dp.include_router(profile.router)
         
         logger.info("Bot started. Waiting for messages...")
+        # Start receiving updates until the process is stopped.
         await dp.start_polling(bot)
         
     except KeyboardInterrupt:
@@ -120,6 +102,7 @@ async def main():
     except Exception as e:
         logger.error(f"Error: {e}")
     finally:
+        # Close the HTTP session opened by the bot client.
         await bot.session.close()
 
 

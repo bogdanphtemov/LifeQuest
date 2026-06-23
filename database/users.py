@@ -25,4 +25,5 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     def __repr__(self):
+        # Return a compact debug representation for logs and shells.
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, level={self.level})>"
