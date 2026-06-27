@@ -91,12 +91,11 @@ async def set_bot_commands():
     """Set bot commands"""
     # Register the commands shown in the Telegram bot menu.
     commands = [
-        BotCommand(command="start", description="Open the LifeQuest app"),
-        BotCommand(command="login", description="Legacy chat login"),
-        BotCommand(command="profile", description="View profile"),
-        BotCommand(command="delete_account", description="Delete account"),
-        BotCommand(command="cancel", description="Cancel current action"),
-        BotCommand(command="help", description="Get help"),
+        BotCommand(command="start", description="🚀 Start LifeQuest"),
+        BotCommand(command="profile", description="👤 Character profile"),
+        BotCommand(command="delete_account", description="🗑️ Delete account"),
+        BotCommand(command="cancel", description="❌ Cancel action"),
+        BotCommand(command="help", description="📋 Help"),
     ]
     await bot.set_my_commands(commands)
 

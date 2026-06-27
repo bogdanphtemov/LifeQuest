@@ -1,97 +1,212 @@
-/* UI Management Module
+/**
+ * LifeQuest — UI module.
+ *
+ * Manages the DOM rendering: loading state, registered/dashboard state,
+ * not-registered state, and the delete-account confirmation flow.
+ *
+ * Relies on auth.js for API calls.
+ */
 
-   This module handles screen transitions (auth ↔ game), form switching
-   (login ↔ register), and player info updates. All DOM event listeners
-   are registered here as an alternative to inline onclick handlers in the
-   HTML — this improves CSP compliance, testability, and keeps concerns
-   separated.
-*/
+// ---------------------------------------------------------------------------
+// DOM references (cached once on first render)
+// ---------------------------------------------------------------------------
 
-// =========================================================================
-// Screen switching functions (called from auth.js and event listeners)
-// =========================================================================
+let els = {};
 
-function switchToRegister() {
-    document.getElementById('login-form').classList.remove('active');
-    document.getElementById('register-form').classList.add('active');
+function cacheElements() {
+    els = {
+        loading: document.getElementById('loading'),
+        notRegistered: document.getElementById('not-registered'),
+        authenticated: document.getElementById('authenticated'),
+        deleteModal: document.getElementById('delete-modal'),
+
+        profileName: document.getElementById('profile-name'),
+        profileClass: document.getElementById('profile-class'),
+        profileAvatar: document.getElementById('profile-avatar'),
+        statLevel: document.getElementById('stat-level'),
+        statExperience: document.getElementById('stat-experience'),
+        statCoins: document.getElementById('stat-coins'),
+        statUsername: document.getElementById('stat-username'),
+        telegramInfo: document.getElementById('telegram-info'),
+
+        retrySession: document.getElementById('retry-session'),
+        refreshProfile: document.getElementById('refresh-profile'),
+        deleteAccountBtn: document.getElementById('delete-account'),
+        confirmDelete: document.getElementById('confirm-delete'),
+        cancelDelete: document.getElementById('cancel-delete'),
+        deletePassword: document.getElementById('delete-password'),
+    };
 }
 
-function switchToLogin() {
-    document.getElementById('register-form').classList.remove('active');
-    document.getElementById('login-form').classList.add('active');
-}
+// ---------------------------------------------------------------------------
+// Application state
+// ---------------------------------------------------------------------------
 
-function switchToAuthScreen() {
-    document.getElementById('auth-screen').classList.add('active');
-    document.getElementById('game-screen').classList.remove('active');
-    
-    // Clear forms
-    document.getElementById('reg-username').value = '';
-    document.getElementById('reg-display-name').value = '';
-    document.getElementById('reg-class').value = 'adventurer';
-    
-    // Show welcome state
-    document.getElementById('login-form').classList.add('active');
-    document.getElementById('register-form').classList.remove('active');
-}
+let currentTelegramUser = null;
+let currentUser = null;
 
-function switchToGameScreen() {
-    document.getElementById('auth-screen').classList.remove('active');
-    document.getElementById('game-screen').classList.add('active');
-    
-    // Update player info
-    updatePlayerInfo();
-}
+// ---------------------------------------------------------------------------
+// View switching
+// ---------------------------------------------------------------------------
 
-function updatePlayerInfo() {
-    const user = authManager.getCurrentUser();
-    if (!user) return;
-
-    document.getElementById('player-name').textContent = user.first_name || user.username;
-    document.getElementById('player-level').textContent = user.level || 1;
-    document.getElementById('player-exp').textContent = user.experience || 0;
-    document.getElementById('player-coins').textContent = user.coins || 0;
-}
-
-// =========================================================================
-// Event listeners — bound after DOM is ready
-// =========================================================================
-
-document.addEventListener('DOMContentLoaded', function () {
-    // "Create Character" button — shown by auth.js after Telegram session resolves
-    const createButton = document.getElementById('create-character-button');
-    if (createButton) {
-        createButton.addEventListener('click', switchToRegister);
-    }
-
-    // "Enter the Realm" (register confirmation)
-    const registerButton = document.getElementById('register-button');
-    if (registerButton) {
-        registerButton.addEventListener('click', registerUser);
-    }
-
-    // "Back" button (from register form to welcome/login)
-    const backButton = document.getElementById('back-button');
-    if (backButton) {
-        backButton.addEventListener('click', switchToLogin);
-    }
-
-    // "Logout" button (game screen)
-    const logoutButton = document.getElementById('logout-button');
-    if (logoutButton) {
-        logoutButton.addEventListener('click', logout);
-    }
-
-    // Keyboard shortcuts — Enter triggers registration when on the register form
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-            const authScreen = document.getElementById('auth-screen');
-            if (authScreen && authScreen.classList.contains('active')) {
-                const registerForm = document.getElementById('register-form');
-                if (registerForm && registerForm.classList.contains('active')) {
-                    registerUser();
-                }
-            }
-        }
+function showView(viewId) {
+    [els.loading, els.notRegistered, els.authenticated, els.deleteModal].forEach((el) => {
+        if (el) el.classList.add('hidden');
     });
+    const target = document.getElementById(viewId);
+    if (target) target.classList.remove('hidden');
+}
+
+// ---------------------------------------------------------------------------
+// Render profile / dashboard
+// ---------------------------------------------------------------------------
+
+function renderProfile(user, telegramUser) {
+    if (!els.profileName) return;
+
+    const classEmojis = {
+        adventurer: '⚔️',
+        warrior: '🛡️',
+        mage: '🔮',
+        ranger: '🏹',
+    };
+
+    const classEmoji = classEmojis[user.character_class] || '⚔️';
+    const displayName = user.display_name || user.username || 'Player';
+    const className = user.character_class
+        ? `${classEmoji} ${user.character_class.charAt(0).toUpperCase() + user.character_class.slice(1)}`
+        : '—';
+
+    els.profileName.textContent = displayName;
+    els.profileClass.textContent = `Class: ${className}`;
+    els.profileAvatar.textContent = classEmoji;
+    els.statLevel.textContent = user.level ?? '—';
+    els.statExperience.textContent = user.experience ?? '—';
+    els.statCoins.textContent = user.coins ?? '—';
+    els.statUsername.textContent = `@${user.username ?? '—'}`;
+
+    // Show Telegram info if available
+    if (telegramUser && els.telegramInfo) {
+        const parts = [];
+        if (telegramUser.first_name) parts.push(telegramUser.first_name);
+        if (telegramUser.last_name) parts.push(telegramUser.last_name);
+        const name = parts.join(' ') || 'Telegram user';
+        const lang = telegramUser.language_code
+            ? ` (${telegramUser.language_code.toUpperCase()})`
+            : '';
+        els.telegramInfo.textContent = `👤 ${name}${lang}`;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Main app initialisation
+// ---------------------------------------------------------------------------
+
+async function initApp() {
+    cacheElements();
+
+    // Show loading
+    showView('loading');
+
+    try {
+        const data = await resolveSession();
+
+        if (data.status === 'success' && data.registered && data.user) {
+            // Registered user — show dashboard
+            currentTelegramUser = data.telegram_user;
+            currentUser = data.user;
+            renderProfile(currentUser, currentTelegramUser);
+            showView('authenticated');
+        } else {
+            // Not registered — show "create in bot" screen
+            showView('not-registered');
+        }
+    } catch (err) {
+        console.error('Session resolution failed:', err);
+        showView('not-registered');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Event listeners
+// ---------------------------------------------------------------------------
+
+document.addEventListener('DOMContentLoaded', () => {
+    initApp();
+
+    // Retry session (not-registered screen)
+    const retryBtn = document.getElementById('retry-session');
+    if (retryBtn) {
+        retryBtn.addEventListener('click', () => initApp());
+    }
+
+    // Refresh profile (dashboard)
+    const refreshBtn = document.getElementById('refresh-profile');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            if (!currentTelegramUser?.id) return;
+            try {
+                const data = await fetchUserProfile(currentTelegramUser.id);
+                if (data.status === 'success' && data.user) {
+                    currentUser = data.user;
+                    renderProfile(currentUser, currentTelegramUser);
+                }
+            } catch (err) {
+                console.error('Profile refresh failed:', err);
+            }
+        });
+    }
+
+    // Delete account button (dashboard)
+    const deleteBtn = document.getElementById('delete-account');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+            if (els.deleteModal) {
+                els.deleteModal.classList.remove('hidden');
+                els.deletePassword.value = '';
+                els.deletePassword.focus();
+            }
+        });
+    }
+
+    // Cancel delete
+    const cancelBtn = document.getElementById('cancel-delete');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            if (els.deleteModal) els.deleteModal.classList.add('hidden');
+        });
+    }
+
+    // Confirm delete
+    const confirmBtn = document.getElementById('confirm-delete');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+            const password = els.deletePassword?.value;
+            const telegramId = currentTelegramUser?.id || currentUser?.telegram_id;
+
+            if (!password || !telegramId) return;
+
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = '⏳ Deleting...';
+
+            try {
+                const result = await deleteAccount(telegramId, password);
+                if (result.status === 'success') {
+                    alert('Account deleted successfully.');
+                    currentTelegramUser = null;
+                    currentUser = null;
+                    showView('not-registered');
+                } else {
+                    alert('Error: ' + (result.message || 'Could not delete account.'));
+                }
+            } catch (err) {
+                alert('Network error. Please try again.');
+                console.error('Delete failed:', err);
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '🗑️ Confirm Delete';
+                if (els.deleteModal) els.deleteModal.classList.add('hidden');
+            }
+        });
+    }
 });

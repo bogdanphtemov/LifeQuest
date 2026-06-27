@@ -1,24 +1,30 @@
 """
 Authentication API routes — Flask Blueprint for the LifeQuest Mini App backend.
 
-This module exposes RESTful endpoints under /api/auth/ that handle Telegram
-Mini App session resolution, character registration (both via Telegram login
-and legacy username/password), login, account deletion, and profile retrieval.
+SIMPLIFIED:
+- Registration happens ONLY in the Telegram bot (via /start)
+- Authorization is automatic via telegram_id (Mini App)
+- Account deletion uses telegram_id + password
+- Frontend only pulls data from the database
 
-Architectural notes:
-- The blueprint is registered in backend/app.py with url_prefix='/api/auth'.
-- All endpoints that need database access obtain a session factory from the
-  Flask app object via get_session_factory() -> current_app.session_local.
-- The shared User model (database/users.py) is imported lazily inside each
-  route function to avoid circular import issues and module-level coupling.
-- Telegram initData (from the Mini App frontend) is cryptographically verified
-  using the BOT_TOKEN before any database operation is performed.
+Current endpoints:
+- POST /api/auth/telegram/session — verify Telegram session
+- DELETE /api/auth/account — delete account (telegram_id + password)
+- GET /api/auth/user/<telegram_id> — user profile
+
+Architecture notes:
+- Blueprint registered in backend/app.py with url_prefix='/api/auth'.
+- All endpoints that need a DB get a session factory from the Flask app
+  via get_session_factory() -> current_app.session_local.
+- User model (database/users.py) is lazily imported inside functions
+  to avoid circular imports.
+- Telegram initData is cryptographically verified via BOT_TOKEN.
 """
 
 from flask import Blueprint, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from sqlalchemy import func, select
+from sqlalchemy import select
 import hashlib
 import hmac
 import json
@@ -28,8 +34,8 @@ from urllib.parse import parse_qsl
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
-# Створюємо limiter для цього blueprint.
-# Використовуємо shared вбудований storage з app (через current_app).
+# Create a limiter for this blueprint.
+# Uses shared built-in storage from app (via current_app).
 limiter = Limiter(
     key_func=get_remote_address,
     storage_uri="memory://",
@@ -78,8 +84,8 @@ def verify_telegram_init_data(init_data: str) -> dict:
     if not received_hash:
         raise ValueError('Telegram initData hash is missing')
 
-    # === Захист від Replay атак: перевірка часу створення initData ===
-    AUTH_MAX_AGE_SECONDS = 86400  # 24 години (максимальний вік initData)
+    # === Replay attack protection: check initData creation time ===
+    AUTH_MAX_AGE_SECONDS = 86400  # 24 hours (max initData age)
 
     auth_date_str = parsed_data.get('auth_date', '')
     if not auth_date_str:
@@ -92,7 +98,6 @@ def verify_telegram_init_data(init_data: str) -> dict:
 
     if time.time() - auth_date > AUTH_MAX_AGE_SECONDS:
         raise ValueError('Telegram initData has expired')
-    # =================================================================
 
     data_check_string = '\n'.join(
         f'{key}={value}' for key, value in sorted(parsed_data.items())
@@ -248,18 +253,6 @@ def serialize_telegram_user(telegram_user):
     }
 
 
-def make_unusable_password_hash() -> str:
-    """
-    Generate a password hash that can never be verified.
-
-    Used for Telegram-only accounts (registered via the Mini App) that do not
-    set a password. The "telegram$" prefix causes verify_password() to always
-    return False, effectively disabling legacy username/password login for
-    these accounts.
-    """
-    return f"telegram${os.urandom(32).hex()}"
-
-
 # ---------------------------------------------------------------------------
 # Database session helper
 # ---------------------------------------------------------------------------
@@ -343,309 +336,7 @@ def telegram_session():
 
 
 # ===========================================================================
-# Route: Telegram Mini App character registration
-# ===========================================================================
-
-
-@bp.route('/telegram/register', methods=['POST'])
-def telegram_register():
-    """
-    Create a new RPG character linked to a Telegram account.
-
-    Flow:
-    1. Verify the Telegram initData and extract the user profile.
-    2. Validate the chosen username (3-20 chars, alphanumeric + hyphens/underscores).
-    3. Check for duplicate telegram_id or username.
-    4. Create a User row with a non-usable password hash (Telegram-only account).
-    5. Return the serialised user to the frontend.
-
-    Expected request body:
-    {
-        "init_data": "...",
-        "username": "hero_name",
-        "display_name": "Hero Name",
-        "character_class": "warrior",
-        "avatar": "pixel_warrior"
-    }
-    Responses: 201 (created), 200 (already exists), 400 (validation), 409 (conflict).
-    """
-    from database.users import User
-
-    data = request.get_json() or {}
-
-    try:
-        telegram_user = verify_telegram_init_data(data.get('init_data', ''))
-    except (ValueError, json.JSONDecodeError) as error:
-        return jsonify({
-            'status': 'error',
-            'message': str(error)
-        }), 401
-
-    telegram_id = telegram_user.get('id')
-    if not telegram_id:
-        return jsonify({
-            'status': 'error',
-            'message': 'Telegram user id is missing'
-        }), 401
-
-    username = normalize_username(data.get('username', ''))
-    display_name = data.get('display_name', '').strip()
-    character_class = data.get('character_class', 'adventurer').strip() or 'adventurer'
-    avatar = data.get('avatar', 'pixel_adventurer').strip() or 'pixel_adventurer'
-
-    validation_error = validate_username(username)
-    if validation_error:
-        return jsonify({
-            'status': 'error',
-            'message': validation_error
-        }), 400
-
-    try:
-        with get_session_factory()() as session:
-            existing_telegram_user = session.execute(
-                select(User).where(User.telegram_id == telegram_id)
-            ).scalar_one_or_none()
-            if existing_telegram_user:
-                return jsonify({
-                    'status': 'success',
-                    'message': 'User already registered',
-                    'user': serialize_user(existing_telegram_user)
-                }), 200
-
-            existing_username = session.execute(
-                select(User).where(User.username == username)
-            ).scalar_one_or_none()
-            if existing_username:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Username already exists'
-                }), 409
-
-            new_user = User(
-                telegram_id=telegram_id,
-                username=username,
-                password_hash=make_unusable_password_hash(),
-                display_name=display_name or telegram_user.get('first_name') or username,
-                first_name=telegram_user.get('first_name', ''),
-                last_name=telegram_user.get('last_name', ''),
-                avatar=avatar,
-                character_class=character_class,
-                level=1,
-                experience=0,
-                coins=0,
-            )
-            session.add(new_user)
-            session.commit()
-            session.refresh(new_user)
-
-            return jsonify({
-                'status': 'success',
-                'message': 'Character created successfully',
-                'user': serialize_user(new_user)
-            }), 201
-
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Character creation failed: {str(e)}'
-        }), 500
-
-
-# ===========================================================================
-# Route: Legacy username/password registration
-# ===========================================================================
-
-
-@bp.route('/register', methods=['POST'])
-@limiter.limit("5 per minute")
-def register():
-    """
-    Register a new user with a username and password (legacy flow).
-
-    This endpoint is used when a user registers via the Mini App but wants
-    a full password-based account (unlike /telegram/register which creates
-    a Telegram-only account without a usable password).
-
-    Expected JSON:
-    {
-        "username": "username",
-        "password": "password",
-        "telegram_id": 123456789,
-        "first_name": "John",
-        "last_name": "Doe"
-    }
-
-    Responses: 201 (created), 400 (validation), 409 (duplicate username/telegram_id).
-    """
-    from database.users import User
-    
-    data = request.get_json()
-    
-    if not data:
-        return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
-    
-    # Validate required fields
-    username = normalize_username(data.get('username', ''))
-    password = data.get('password', '').strip()
-    telegram_id = data.get('telegram_id')
-    first_name = data.get('first_name', '').strip()
-    last_name = data.get('last_name', '').strip()
-    
-    validation_error = validate_username(username)
-    if validation_error:
-        return jsonify({
-            'status': 'error',
-            'message': validation_error
-        }), 400
-    
-    if not password or len(password) < 6:
-        return jsonify({
-            'status': 'error',
-            'message': 'Password must be at least 6 characters'
-        }), 400
-    
-    if not telegram_id:
-        return jsonify({
-            'status': 'error',
-            'message': 'Telegram ID is required'
-        }), 400
-    
-    try:
-        with get_session_factory()() as session:
-            # Check if user already exists
-            result = session.execute(
-                select(User).where(User.username == username)
-            )
-            if result.scalar_one_or_none():
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Username already exists'
-                }), 409
-            
-            # Check if telegram_id already exists
-            result = session.execute(
-                select(User).where(User.telegram_id == telegram_id)
-            )
-            if result.scalar_one_or_none():
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Telegram ID already registered'
-                }), 409
-            
-            # Create new user
-            new_user = User(
-                telegram_id=telegram_id,
-                username=username,
-                password_hash=hash_password(password),
-                display_name=first_name or username,
-                first_name=first_name,
-                last_name=last_name,
-                avatar='pixel_adventurer',
-                character_class='adventurer',
-                level=1,
-                experience=0,
-                coins=0,
-            )
-            session.add(new_user)
-            session.commit()
-            session.refresh(new_user)
-            
-            return jsonify({
-                'status': 'success',
-                'message': 'User registered successfully',
-                'user': serialize_user(new_user)
-            }), 201
-    
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Registration failed: {str(e)}'
-        }), 500
-
-
-# ===========================================================================
-# Route: Legacy username/password login
-# ===========================================================================
-
-
-@bp.route('/login', methods=['POST'])
-@limiter.limit("10 per minute")
-def login():
-    """
-    Authenticate a user with username and password (legacy flow).
-
-    Flow:
-    1. Look up the user by normalized username.
-    2. Verify the password against the stored hash.
-    3. If the user already has a telegram_id and it differs from the request,
-       reject with 403 (account already linked to another Telegram user).
-    4. If the user has no telegram_id or it matches, link/update it and commit.
-    5. Return the serialised user.
-
-    Expected JSON:
-    {
-        "username": "username",
-        "password": "password",
-        "telegram_id": 123456789
-    }
-
-    Responses: 200 (success), 401 (invalid credentials), 403 (already linked).
-    """
-    from database.users import User
-    
-    data = request.get_json()
-    
-    if not data:
-        return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
-    
-    username = normalize_username(data.get('username', ''))
-    password = data.get('password', '').strip()
-    telegram_id = data.get('telegram_id')
-    
-    if not username or not password or not telegram_id:
-        return jsonify({
-            'status': 'error',
-            'message': 'Username, password, and Telegram ID are required'
-        }), 400
-    
-    try:
-        with get_session_factory()() as session:
-            result = session.execute(
-                select(User).where(User.username == username)
-            )
-            user = result.scalar_one_or_none()
-            
-            if not user or not verify_password(password, user.password_hash):
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Invalid username or password'
-                }), 401
-
-            if user.telegram_id and user.telegram_id != telegram_id:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Account is linked to another Telegram user'
-                }), 403
-
-            if user.telegram_id != telegram_id:
-                user.telegram_id = telegram_id
-                session.commit()
-            
-            return jsonify({
-                'status': 'success',
-                'message': 'Login successful',
-                'user': serialize_user(user)
-            }), 200
-    
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Login failed: {str(e)}'
-        }), 500
-
-
-# ===========================================================================
-# Route: Account deletion
+# Route: Account deletion (via telegram_id + password)
 # ===========================================================================
 
 
@@ -653,17 +344,20 @@ def login():
 @limiter.limit("3 per minute")
 def delete_account():
     """
-    Permanently delete a user account after confirming username and password.
+    Permanently delete a user account after confirming telegram_id and password.
+
+    Uses telegram_id (auto-detected) + password confirmation,
+    matching the bot-side deletion logic.
 
     Flow:
-    1. Validate that username and password are present (password must be a string).
-    2. Look up the user by normalized username (supports bare and @username form).
+    1. Validate that telegram_id and password are present.
+    2. Look up the user by telegram_id.
     3. Verify the password against the stored hash.
-    4. Delete the User row and commit.
+    4. Delete the User row and commit (full data cleanup).
 
     Expected JSON:
     {
-        "username": "username",
+        "telegram_id": 123456789,
         "password": "password"
     }
 
@@ -676,7 +370,7 @@ def delete_account():
     if not data:
         return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
 
-    username = normalize_username(data.get('username', ''))
+    telegram_id = data.get('telegram_id')
     password = data.get('password', '')
 
     if not isinstance(password, str):
@@ -685,32 +379,38 @@ def delete_account():
             'message': 'Password must be a string'
         }), 400
 
-    if not username or not password:
+    if not telegram_id or not password:
         return jsonify({
             'status': 'error',
-            'message': 'Username and password are required'
+            'message': 'telegram_id and password are required'
         }), 400
 
     try:
         with get_session_factory()() as session:
-            username_column = func.lower(func.trim(User.username))
             user = session.execute(
-                select(User).where(
-                    username_column.in_((username, f'@{username}'))
-                )
+                select(User).where(User.telegram_id == telegram_id)
             ).scalar_one_or_none()
 
             if not user or not verify_password(password, user.password_hash):
                 return jsonify({
                     'status': 'error',
-                    'message': 'Invalid username or password'
+                    'message': 'Invalid telegram_id or password'
                 }), 401
 
             deleted_user = {
                 'id': user.id,
+                'telegram_id': user.telegram_id,
                 'username': user.username,
             }
 
+            # --- Full account data cleanup ---
+            # Currently only deletes the user row.
+            # In the future this will include:
+            # 1. Delete quest progress:    session.query(QuestProgress).filter_by(user_id=user.id).delete()
+            # 2. Delete inventory:         session.query(Inventory).filter_by(user_id=user.id).delete()
+            # 3. Delete achievements:      session.query(Achievement).filter_by(user_id=user.id).delete()
+            # 4. Delete notifications:     session.query(Notification).filter_by(user_id=user.id).delete()
+            # ...
             session.delete(user)
             session.commit()
 
@@ -743,25 +443,25 @@ def get_user(telegram_id):
     Responses: 200 (found), 404 (not found).
     """
     from database.users import User
-    
+
     try:
         with get_session_factory()() as session:
             result = session.execute(
                 select(User).where(User.telegram_id == telegram_id)
             )
             user = result.scalar_one_or_none()
-            
+
             if not user:
                 return jsonify({
                     'status': 'error',
                     'message': 'User not found'
                 }), 404
-            
+
             return jsonify({
                 'status': 'success',
                 'user': serialize_user(user)
             }), 200
-    
+
     except Exception as e:
         return jsonify({
             'status': 'error',

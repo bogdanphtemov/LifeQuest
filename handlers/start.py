@@ -1,15 +1,20 @@
 """
-Telegram bot command and callback handlers for authentication and onboarding.
+Telegram bot command and callback handlers for registration and account deletion.
 
-This module defines all handlers related to user registration, login (via
-username/password), account deletion, and the main /start command that opens
-the LifeQuest Mini App. It uses aiogram's FSM (Finite State Machine) to manage
-multi-step conversational flows, and SQLAlchemy sessions (injected by the
-DatabaseMiddleware from main.py) for all database operations.
+This module defines all handlers related to user registration (via Telegram bot in
+text format), automatic login via telegram_id, account deletion, and the main /start
+command that opens the LifeQuest Mini App.
+
+Key changes:
+- Registration is handled entirely in the Telegram bot (text format, no frontend form)
+- Login is automatic via telegram_id (unique identifier)
+- Account deletion uses telegram_id (auto-detected) + password confirmation
+- Frontend / Mini App just pulls data from the database and shows the game screen
 
 Module-level dependencies:
 - router (aiogram.Router): Registered in main.py with dp.include_router().
-- AuthStates (StatesGroup): Defines all FSM states used across these flows.
+- RegisterStates (StatesGroup): FSM states for bot-based registration flow.
+- DeleteStates (StatesGroup): FSM states for account deletion flow.
 - Each handler receives a `session: Session` kwarg via middleware injection.
 """
 
@@ -38,13 +43,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _login_attempts: dict[int, list[float]] = defaultdict(list)
-"""Track timestamps of failed login attempts per user_id."""
+"""Track timestamps of failed attempts per user_id."""
 
 MAX_LOGIN_ATTEMPTS = 5
-"""Max consecutive failed login attempts before lockout."""
+"""Max consecutive failed attempts before lockout."""
 
-LOGIN_WINDOW_SECONDS = 300  # 5 хвилин
-"""Time window for counting login attempts."""
+LOGIN_WINDOW_SECONDS = 300  # 5 minutes
+"""Time window for counting attempts."""
 
 
 def _is_login_rate_limited(user_id: int) -> bool:
@@ -56,7 +61,6 @@ def _is_login_rate_limited(user_id: int) -> bool:
     """
     now = time.time()
     attempts = _login_attempts[user_id]
-    # Keep only attempts within the window
     _login_attempts[user_id] = [t for t in attempts if now - t < LOGIN_WINDOW_SECONDS]
     if len(_login_attempts[user_id]) >= MAX_LOGIN_ATTEMPTS:
         return True
@@ -75,7 +79,37 @@ def _reset_login_attempts(user_id: int) -> None:
 
 _register_attempts: dict[int, list[float]] = defaultdict(list)
 MAX_REGISTER_ATTEMPTS = 3
-REGISTER_WINDOW_SECONDS = 3600  # 1 година
+REGISTER_WINDOW_SECONDS = 3600  # 1 hour
+
+
+# ---------------------------------------------------------------------------
+# FSM States for Registration and Deletion flows
+# ---------------------------------------------------------------------------
+
+
+class RegisterStates(StatesGroup):
+    """
+    FSM states for the bot-based registration flow.
+
+    The user is guided through 4 steps:
+    1. Enter username (3-20 chars, unique)
+    2. Enter display name (optional)
+    3. Choose character class (via inline keyboard)
+    4. Set password (for account deletion confirmation)
+    """
+    waiting_for_username = State()
+    waiting_for_display_name = State()
+    waiting_for_character_class = State()
+    waiting_for_password = State()
+
+
+class DeleteStates(StatesGroup):
+    """
+    FSM states for account deletion flow.
+
+    Since telegram_id is auto-detected, only password confirmation is needed.
+    """
+    waiting_for_password = State()
 
 
 def _is_register_rate_limited(user_id: int) -> bool:
@@ -87,22 +121,6 @@ def _is_register_rate_limited(user_id: int) -> bool:
         return True
     _register_attempts[user_id].append(now)
     return False
-
-
-class AuthStates(StatesGroup):
-    """
-    FSM states for multi-step authentication and account deletion flows.
-
-    Each state corresponds to a step where the bot waits for user text input.
-    The flow transitions between states via @router.message(state) handlers.
-    """
-    waiting_for_register_username = State()
-    waiting_for_register_password = State()
-    waiting_for_existing_password = State()
-    waiting_for_login_username = State()
-    waiting_for_login_password = State()
-    waiting_for_delete_username = State()
-    waiting_for_delete_password = State()
 
 
 def get_user_by_telegram_id(session: Session, telegram_id: int) -> User | None:
@@ -238,47 +256,59 @@ def is_valid_web_app_url(url: str) -> bool:
     )
 
 
-def build_start_keyboard() -> InlineKeyboardMarkup:
+def build_start_keyboard(is_registered: bool = False) -> InlineKeyboardMarkup:
     """
     Build the inline keyboard for the /start command.
 
+    Args:
+        is_registered: Whether the user is already registered.
+                       If True, shows "Open LifeQuest", "Profile", and
+                       "Delete account" buttons.
+                       If False, registration flow is in progress.
+
     Includes:
     - "Open LifeQuest" button that launches the Telegram Mini App (if configured).
-    - "Delete account" button that triggers the deletion flow via callback.
+    - "Profile" button (only for registered users).
+    - "Delete account" button (only for registered users).
     """
     buttons = []
 
     if is_valid_web_app_url(WEB_APP_URL):
         buttons.append([
             InlineKeyboardButton(
-                text="Open LifeQuest",
+                text="🎮 Open LifeQuest",
                 web_app=WebAppInfo(url=WEB_APP_URL),
             )
         ])
 
-    buttons.append([
-        InlineKeyboardButton(
-            text="Delete account",
-            callback_data="delete_account",
-        )
-    ])
+    if is_registered:
+        buttons.append([
+            InlineKeyboardButton(
+                text="👤 Profile",
+                callback_data="show_profile",
+            ),
+            InlineKeyboardButton(
+                text="🗑️ Delete account",
+                callback_data="delete_account",
+            ),
+        ])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-async def start_delete_account_flow(message: types.Message, state: FSMContext):
-    """
-    Shared entry point for account deletion, used by both /delete_account
-    command and the "Delete account" inline button callback.
-
-    Clears state and prompts for the account login.
-    """
+async def start_registration(message: types.Message, state: FSMContext):
+    """Start the registration flow for a new user."""
     await state.clear()
     await message.answer(
-        "Account deletion started.\n\n"
-        "Enter the login of the account you want to delete:"
+        "🌟 Welcome to **LifeQuest**!\n\n"
+        "You are a new adventurer in this world. Let's create your character!\n\n"
+        "**Step 1 of 4:**\n"
+        "Enter your **username** (in-game login):\n"
+        "• 3 to 20 characters\n"
+        "• Only letters, numbers, hyphens (-) and underscores (_)\n"
+        "• Must be unique"
     )
-    await state.set_state(AuthStates.waiting_for_delete_username)
+    await state.set_state(RegisterStates.waiting_for_username)
 
 
 # ---------------------------------------------------------------------------
@@ -289,50 +319,46 @@ async def start_delete_account_flow(message: types.Message, state: FSMContext):
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext, session: Session):
     """
-    Handle the /start command — the main entry point for new and returning users.
+    Handle the /start command — the main entry point for new and returning players.
 
-    Clears any ongoing FSM conversation and presents the Mini App launch button.
-    If WEB_APP_URL is not a valid HTTPS URL, shows a configuration hint instead.
+    Logic:
+    1. Clear any previous FSM state
+    2. Look up the user in the database by telegram_id
+    3. If USER EXISTS:
+       - Show "Welcome back!" + buttons (Mini App, Profile, Delete)
+    4. If USER NOT FOUND:
+       - Start the registration flow (start_registration)
     """
     await state.clear()
 
-    if is_valid_web_app_url(WEB_APP_URL):
-        await message.answer(
-            "Welcome to TG BOT RPG!\n\n"
-            "Open the RPG app to create your character, manage quests, and track your progress.",
-            reply_markup=build_start_keyboard(),
-        )
-        return
-
-    await message.answer(
-        "Welcome to TG BOT RPG!\n\n"
-        "The Mini App URL is not ready for Telegram yet:\n"
-        f"{WEB_APP_URL}\n\n"
-        "Telegram Mini App buttons require a public HTTPS WEB_APP_URL. "
-        "Put only the HTTPS URL in .env, without the arrow or local address. "
-        "Example: WEB_APP_URL=https://example.ngrok-free.app",
-        reply_markup=build_start_keyboard(),
-    )
-
-
-@router.message(Command("login"))
-async def cmd_login(message: types.Message, state: FSMContext, session: Session):
-    """
-    Handle the /login command — start the legacy username/password login flow.
-
-    Two scenarios:
-    - User already has a Telegram-linked account: ask for password directly.
-    - User is not yet linked: ask for a login first.
-    """
     user = get_user_by_telegram_id(session, message.from_user.id)
-    
-    if user:
-        await message.answer("Enter your password:")
-        await state.set_state(AuthStates.waiting_for_existing_password)
-        return
 
-    await message.answer("Enter your login:")
-    await state.set_state(AuthStates.waiting_for_login_username)
+    if user:
+        # User exists — show main menu
+        class_emojis = {
+            "adventurer": "⚔️",
+            "warrior": "🛡️",
+            "mage": "🔮",
+            "ranger": "🏹",
+        }
+        class_emoji = class_emojis.get(user.character_class, "⚔️")
+
+        welcome_text = (
+            f"🎮 **Welcome back, {user.display_name or user.username}!**\n\n"
+            f"{class_emoji} Class: {user.character_class.capitalize()}\n"
+            f"🎚️ Level: {user.level}\n"
+            f"⭐ Experience: {user.experience}\n"
+            f"🪙 Coins: {user.coins}\n\n"
+            "Click the button below to enter the game! 🎮"
+        )
+
+        await message.answer(
+            welcome_text,
+            reply_markup=build_start_keyboard(is_registered=True),
+        )
+    else:
+        # User not found — start registration
+        await start_registration(message, state)
 
 
 @router.message(Command("cancel"))
@@ -343,17 +369,37 @@ async def cmd_cancel(message: types.Message, state: FSMContext):
     Clears the FSM state and resets the conversation back to the idle state.
     """
     await state.clear()
-    await message.answer("Current action cancelled.")
+    await message.answer("❌ Current action cancelled.")
 
 
 @router.message(Command("delete_account"))
-async def cmd_delete_account(message: types.Message, state: FSMContext):
-    """Handle the /delete_account command — start account deletion flow."""
-    await start_delete_account_flow(message, state)
+async def cmd_delete_account(message: types.Message, state: FSMContext, session: Session):
+    """Handle the /delete_account command — start account deletion flow.
+
+    Since telegram_id is auto-detected, only password confirmation is needed.
+    """
+    user = get_user_by_telegram_id(session, message.from_user.id)
+
+    if not user:
+        await message.answer(
+            "ℹ️ You don't have an account yet. "
+            "Use /start to create a character!"
+        )
+        return
+
+    await state.clear()
+    await state.update_data(delete_user_id=user.id)
+    await message.answer(
+        f"🗑️ **Account Deletion**\n\n"
+        f"Do you want to delete account **{user.username}**?\n"
+        f"⚠️ This will **permanently** delete your character and all progress!\n\n"
+        "Enter your **password** to confirm:",
+    )
+    await state.set_state(DeleteStates.waiting_for_password)
 
 
 @router.callback_query(lambda callback: callback.data == "delete_account")
-async def callback_delete_account(callback: types.CallbackQuery, state: FSMContext):
+async def callback_delete_account(callback: types.CallbackQuery, state: FSMContext, session: Session):
     """
     Handle the "Delete account" inline button press.
 
@@ -361,235 +407,48 @@ async def callback_delete_account(callback: types.CallbackQuery, state: FSMConte
     """
     await callback.answer()
     if callback.message:
-        await start_delete_account_flow(callback.message, state)
+        user = get_user_by_telegram_id(session, callback.from_user.id)
+        if not user:
+            await callback.message.answer(
+                "ℹ️ You don't have an account yet. "
+                "Use /start to create a character!"
+            )
+            return
 
-
-# ---------------------------------------------------------------------------
-# FSM step handlers — Login flow
-# ---------------------------------------------------------------------------
-
-
-@router.message(AuthStates.waiting_for_existing_password)
-async def process_existing_password(
-    message: types.Message,
-    state: FSMContext,
-    session: Session,
-):
-    """
-    FSM step: verify password for a user who already has a Telegram-linked account.
-
-    Entered from /login when the user's Telegram ID is already in the database.
-    On success, calls mark_authenticated() and confirms login.
-    On failure, stays in this state to allow retry.
-    """
-    user_id = message.from_user.id
-
-    # ---- Rate limit check ----
-    if _is_login_rate_limited(user_id):
-        await message.answer(
-            "⛔ Too many login attempts. Please wait 5 minutes and try again."
+        await state.clear()
+        await state.update_data(delete_user_id=user.id)
+        await callback.message.answer(
+            f"🗑️ **Account Deletion**\n\n"
+            f"Do you want to delete account **{user.username}**?\n"
+            f"⚠️ This will **permanently** delete your character and all progress!\n\n"
+            "Enter your **password** to confirm:",
         )
-        logger.warning(f"Rate limit hit: user {user_id} exceeded login attempts")
-        return
-    # --------------------------
-
-    user = get_user_by_telegram_id(session, user_id)
-    if not user:
-        await message.answer("Account was not found. Use /start to register.")
-        await state.clear()
-        return
-
-    if not verify_password(message.text or "", user.password_hash):
-        await message.answer("Wrong password. Try again or use /start.")
-        return
-
-    # Successful login — reset counter
-    _reset_login_attempts(user_id)
-
-    await mark_authenticated(state, user)
-    await message.answer(
-        f"Logged in as {user.display_name or user.username}.\n\n"
-        "Use /profile to view your character."
-    )
-
-
-@router.message(AuthStates.waiting_for_login_username)
-async def process_login_username(message: types.Message, state: FSMContext, session: Session):
-    """
-    FSM step: collect the username for a non-linked Telegram user.
-
-    Validates that the username exists in the database.
-    On success, transitions to waiting_for_login_password.
-    """
-    login = normalize_username(message.text or "")
-    user = get_user_by_login(session, login)
-    
-    if not user:
-        await message.answer("Login was not found. Try again or use /start to register:")
-        return
-
-    await state.update_data(login=login)
-    await message.answer("Enter your password:")
-    await state.set_state(AuthStates.waiting_for_login_password)
-
-
-@router.message(AuthStates.waiting_for_login_password)
-async def process_login_password(message: types.Message, state: FSMContext, session: Session):
-    """
-    FSM step: verify password and complete the login for a non-linked user.
-
-    On success, links the Telegram ID to the account (if not already linked
-    to another user) and calls mark_authenticated().
-    """
-    user_id = message.from_user.id
-
-    # ---- Rate limit check ----
-    if _is_login_rate_limited(user_id):
-        await message.answer(
-            "⛔ Too many login attempts. Please wait 5 minutes and try again."
-        )
-        logger.warning(f"Rate limit hit: user {user_id} exceeded login attempts")
-        return
-    # --------------------------
-
-    data = await state.get_data()
-    user = get_user_by_login(session, data.get("login", ""))
-
-    if not user or not verify_password(message.text or "", user.password_hash):
-        await message.answer("Wrong login or password. Try /login again.")
-        await state.clear()
-        return
-
-    if user.telegram_id and user.telegram_id != message.from_user.id:
-        await message.answer("This account is already linked to another Telegram user.")
-        await state.clear()
-        return
-
-    if user.telegram_id != message.from_user.id:
-        user.telegram_id = message.from_user.id
-        session.commit()
-
-    # Successful login — reset counter
-    _reset_login_attempts(user_id)
-
-    await mark_authenticated(state, user)
-    await message.answer(
-        f"Logged in as {user.display_name or user.username}.\n\n"
-        "Use /profile to view your character."
-    )
+        await state.set_state(DeleteStates.waiting_for_password)
 
 
 # ---------------------------------------------------------------------------
-# FSM step handlers — Account deletion flow
+# FSM step handlers — Registration flow (in bot, text format)
 # ---------------------------------------------------------------------------
 
 
-@router.message(AuthStates.waiting_for_delete_username)
-async def process_delete_username(message: types.Message, state: FSMContext, session: Session):
-    """
-    FSM step: collect the username for account deletion.
-
-    Validates that the account exists and is not linked to another Telegram user.
-    On success, transitions to waiting_for_delete_password.
-    """
-    login = normalize_username(message.text or "")
-    user = get_user_by_login(session, login)
-
-    if not user:
-        await message.answer("Login was not found. Try again or use /cancel.")
-        return
-
-    if user.telegram_id and user.telegram_id != message.from_user.id:
-        await message.answer(
-            "This account is linked to another Telegram user. Deletion cancelled."
-        )
-        await state.clear()
-        return
-
-    await state.update_data(delete_login=login)
-    await message.answer(
-        "Enter the password for this account to confirm deletion:"
-    )
-    await state.set_state(AuthStates.waiting_for_delete_password)
-
-
-@router.message(AuthStates.waiting_for_delete_password)
-async def process_delete_password(message: types.Message, state: FSMContext, session: Session):
-    """
-    FSM step: verify password and permanently delete the user account.
-
-    Performs a final verification, then deletes the User row from the database.
-    On any error, rolls back the transaction and notifies the user.
-    """
-    user_id = message.from_user.id
-
-    # ---- Rate limit check (also protect deletion) ----
-    if _is_login_rate_limited(user_id):
-        await message.answer(
-            "⛔ Too many attempts. Please wait 5 minutes and try again."
-        )
-        logger.warning(f"Rate limit hit: user {user_id} exceeded delete attempts")
-        return
-    # --------------------------------------------------
-
-    data = await state.get_data()
-    login = data.get("delete_login", "")
-    user = get_user_by_login(session, login)
-
-    if not user or not verify_password(message.text or "", user.password_hash):
-        await message.answer("Wrong login or password. Deletion cancelled.")
-        await state.clear()
-        return
-
-    if user.telegram_id and user.telegram_id != message.from_user.id:
-        await message.answer(
-            "This account is linked to another Telegram user. Deletion cancelled."
-        )
-        await state.clear()
-        return
-
-    deleted_login = user.username
-
-    try:
-        session.delete(user)
-        session.commit()
-    except Exception:
-        logger.exception("Error during account deletion")
-        session.rollback()
-        await message.answer("Error during account deletion. Try again later.")
-        await state.clear()
-        return
-
-    _reset_login_attempts(user_id)
-    await state.clear()
-    await message.answer(
-        f"Account '{deleted_login}' was deleted successfully."
-    )
-
-
-# ---------------------------------------------------------------------------
-# FSM step handlers — Registration flow (if triggered by external /start logic)
-# ---------------------------------------------------------------------------
-
-
-@router.message(AuthStates.waiting_for_register_username)
+@router.message(RegisterStates.waiting_for_username)
 async def process_register_username(message: types.Message, state: FSMContext, session: Session):
     """
-    FSM step: collect and validate a new username during registration.
+    FSM step 1/4: collect and validate username during registration.
 
-    Checks uniqueness and format rules. On success, transitions to password input.
+    Checks format rules (3-20 chars, alphanumeric + - _) and uniqueness.
+    On success, transitions to display name input.
     """
     user_id = message.from_user.id
 
     # ---- Rate limit check for registration ----
     if _is_register_rate_limited(user_id):
         await message.answer(
-            "⛔ You have reached the maximum number of registration attempts "
-            "for today. Please try again later."
+            "⛔ You have reached the maximum number of registration attempts. "
+            "Please try again later."
         )
         logger.warning(f"Rate limit hit: user {user_id} exceeded register attempts")
         return
-    # -------------------------------------------
 
     login = normalize_username(message.text or "")
     validation_error = validate_username(login)
@@ -600,47 +459,132 @@ async def process_register_username(message: types.Message, state: FSMContext, s
     existing_user = get_user_by_login(session, login)
     if existing_user:
         await message.answer(
-            f"Login '{login}' is already taken. Choose another or use /login:"
+            f"❌ Login '{login}' is already taken. Choose another:"
         )
         return
 
-    await state.update_data(login=login)
+    first_name = message.from_user.first_name or login
+    await state.update_data(username=login)
     await message.answer(
-        f"Good! Your login: {login}\n\n"
-        "Now choose a password (at least 6 characters):"
+        f"✅ Great! Your username: **{login}**\n\n"
+        "**Step 2 of 4:**\n"
+        "Enter your **hero name** (what you'll be called in the world of LifeQuest):\n"
+        f"• Or send /skip to use '{first_name}'"
     )
-    await state.set_state(AuthStates.waiting_for_register_password)
+    await state.set_state(RegisterStates.waiting_for_display_name)
 
 
-@router.message(AuthStates.waiting_for_register_password)
+@router.message(RegisterStates.waiting_for_display_name, Command("skip"))
+async def process_skip_display_name(message: types.Message, state: FSMContext):
+    """
+    FSM step 2/4 (skip): skip display name and use Telegram first name.
+    """
+    display_name = message.from_user.first_name or message.from_user.username or "Adventurer"
+    await state.update_data(display_name=display_name)
+    await ask_character_class(message, state)
+
+
+@router.message(RegisterStates.waiting_for_display_name)
+async def process_display_name(message: types.Message, state: FSMContext):
+    """
+    FSM step 2/4: collect display name for the character.
+    """
+    display_name = (message.text or "").strip()
+
+    if not display_name:
+        await message.answer("Hero name cannot be empty. Try again or /skip:")
+        return
+
+    if len(display_name) > 50:
+        await message.answer("Hero name is too long (max 50 characters). Try again:")
+        return
+
+    await state.update_data(display_name=display_name)
+    await ask_character_class(message, state)
+
+
+async def ask_character_class(message: types.Message, state: FSMContext):
+    """Ask the user to choose a character class via inline keyboard."""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="⚔️ Adventurer", callback_data="class_adventurer"),
+            InlineKeyboardButton(text="🛡️ Warrior", callback_data="class_warrior"),
+        ],
+        [
+            InlineKeyboardButton(text="🔮 Mage", callback_data="class_mage"),
+            InlineKeyboardButton(text="🏹 Ranger", callback_data="class_ranger"),
+        ],
+    ])
+    await message.answer(
+        "**Step 3 of 4:**\n"
+        "Choose your **character class**:",
+        reply_markup=keyboard,
+    )
+    await state.set_state(RegisterStates.waiting_for_character_class)
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("class_"))
+async def process_character_class(callback: types.CallbackQuery, state: FSMContext):
+    """
+    FSM step 3/4: process the chosen character class via callback.
+    """
+    class_map = {
+        "class_adventurer": ("adventurer", "Adventurer"),
+        "class_warrior": ("warrior", "Warrior"),
+        "class_mage": ("mage", "Mage"),
+        "class_ranger": ("ranger", "Ranger"),
+    }
+
+    class_key = callback.data
+    if class_key not in class_map:
+        await callback.answer("Unknown class. Try again.")
+        return
+
+    class_value, class_label = class_map[class_key]
+    await state.update_data(character_class=class_value)
+
+    await callback.answer()
+    await callback.message.edit_text(
+        f"✅ Selected class: **{class_label}**\n\n"
+        "**Step 4 of 4 (final):**\n"
+        "Enter a **password** for your account:\n"
+        "• At least 6 characters\n"
+        "• You'll need it to confirm account deletion"
+    )
+    await state.set_state(RegisterStates.waiting_for_password)
+
+
+@router.message(RegisterStates.waiting_for_password)
 async def process_register_password(message: types.Message, state: FSMContext, session: Session):
     """
-    FSM step: finalise user registration with password and create the database record.
+    FSM step 4/4: finalise user registration with password and create the database record.
 
-    Creates a new User row with the Telegram ID, hashed password, and default
-    RPG attributes. On completion, calls mark_authenticated() so the user is
-    immediately logged in.
+    Creates a new User row with the Telegram ID, hashed password, and all collected
+    RPG attributes. On completion, shows success message with "Open LifeQuest" button.
     """
     password = message.text or ""
-    
+
     if len(password) < 6:
         await message.answer(
-            "Password must be at least 6 characters. Try again:"
+            "❌ Password must be at least 6 characters. Try again:"
         )
         return
+
     data = await state.get_data()
-    login = data.get("login")
+    username = data.get("username")
+    display_name = data.get("display_name", message.from_user.first_name or username)
+    character_class = data.get("character_class", "adventurer")
 
     try:
         new_user = User(
             telegram_id=message.from_user.id,
-            username=login,
+            username=username,
             password_hash=hash_password(password),
-            display_name=message.from_user.first_name or login,
+            display_name=display_name,
             first_name=message.from_user.first_name,
             last_name=message.from_user.last_name,
             avatar="pixel_adventurer",
-            character_class="adventurer",
+            character_class=character_class,
             level=1,
             experience=0,
             coins=0,
@@ -648,19 +592,172 @@ async def process_register_password(message: types.Message, state: FSMContext, s
         session.add(new_user)
         session.commit()
 
-        await mark_authenticated(state, new_user)
+        await state.clear()
         await message.answer(
-            "Registration complete!\n\n"
-            f"Welcome, {new_user.display_name or new_user.username}.\n"
-            "Use /profile to view your character."
+            f"🎉 **Congratulations, {display_name}!**\n\n"
+            f"Your character has been created successfully!\n"
+            f"━━━━━━━━━━━━━━━━━\n"
+            f"📛 Name: {display_name}\n"
+            f"🔑 Login: {username}\n"
+            f"⚔️ Class: {character_class.capitalize()}\n"
+            f"🎚️ Level: 1\n"
+            f"━━━━━━━━━━━━━━━━━\n\n"
+            "Click the button below to enter the game! 🎮",
+            reply_markup=build_start_keyboard(is_registered=True),
         )
-    except Exception:
+    except Exception as e:
         logger.exception("Error during user registration")
+        session.rollback()
         await message.answer(
-            "Error during registration.\n\n"
-            "Try again with /start"
+            "❌ Error during registration. Try again with /start"
         )
         await state.clear()
+
+
+# ---------------------------------------------------------------------------
+# FSM step handlers — Account deletion flow (telegram_id + password)
+# ---------------------------------------------------------------------------
+
+
+@router.message(DeleteStates.waiting_for_password)
+async def process_delete_password(message: types.Message, state: FSMContext, session: Session):
+    """
+    FSM step: verify password and permanently delete the user account.
+
+    Uses telegram_id (auto-detected) + password confirmation.
+    On success, performs COMPLETE DATA CLEANUP of the user account.
+
+    Data cleanup logic:
+    1. Delete the user from the users table
+    2. (Future) Delete related data:
+       - quest progress
+       - inventory / items
+       - achievements
+       - message history
+       - settings
+    """
+    user_id = message.from_user.id
+
+    # ---- Rate limit check ----
+    if _is_login_rate_limited(user_id):
+        await message.answer(
+            "⛔ Too many attempts. Please wait 5 minutes and try again."
+        )
+        logger.warning(f"Rate limit hit: user {user_id} exceeded delete attempts")
+        return
+
+    data = await state.get_data()
+    user = session.get(User, data.get("delete_user_id"))
+
+    if not user or not verify_password(message.text or "", user.password_hash):
+        await message.answer("❌ Wrong password. Deletion cancelled.")
+        await state.clear()
+        return
+
+    # Store data for the final message
+    deleted_username = user.username
+    deleted_display_name = user.display_name
+    deleted_telegram_id = user.telegram_id
+
+    try:
+        # ===== COMPLETE DATA CLEANUP =====
+
+        # --- Step 1: Delete related data (future tables) ---
+        # Currently no other tables exist, but the structure is ready for extension:
+        #
+        # session.query(QuestProgress).filter(
+        #     QuestProgress.user_id == user.id
+        # ).delete(synchronize_session=False)
+        #
+        # session.query(Inventory).filter(
+        #     Inventory.user_id == user.id
+        # ).delete(synchronize_session=False)
+        #
+        # session.query(Achievement).filter(
+        #     Achievement.user_id == user.id
+        # ).delete(synchronize_session=False)
+        #
+        # session.query(Notification).filter(
+        #     Notification.user_id == user.id
+        # ).delete(synchronize_session=False)
+        #
+        # session.query(UserSettings).filter(
+        #     UserSettings.user_id == user.id
+        # ).delete(synchronize_session=False)
+
+        # --- Step 2: Delete the user ---
+        session.delete(user)
+        session.commit()
+
+        logger.info(
+            f"Account deleted: user_id={user.id}, "
+            f"username={deleted_username}, "
+            f"telegram_id={deleted_telegram_id}"
+        )
+
+    except Exception:
+        logger.exception("Error during account deletion")
+        session.rollback()
+        await message.answer(
+            "❌ Error during account deletion. Try again later."
+        )
+        await state.clear()
+        return
+
+    _reset_login_attempts(user_id)
+    await state.clear()
+
+    await message.answer(
+        f"✅ **Account '{deleted_username}' successfully deleted.**\n\n"
+        f"📝 Cleanup summary:\n"
+        f"• Character '{deleted_display_name or deleted_username}' — deleted\n"
+        f"• Progress — cleared\n"
+        f"• Account data — completely removed\n\n"
+        "Sorry to see you go... But the door is always open! 🚪\n"
+        "Use /start to create a new character."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Callback: Show profile
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(lambda callback: callback.data == "show_profile")
+async def callback_show_profile(callback: types.CallbackQuery, session: Session):
+    """Handle the "Profile" inline button — show quick character summary."""
+    await callback.answer()
+
+    user = get_user_by_telegram_id(session, callback.from_user.id)
+    if not user:
+        if callback.message:
+            await callback.message.answer(
+                "ℹ️ You don't have an account yet. Use /start to create a character!"
+            )
+        return
+
+    class_emojis = {
+        "adventurer": "⚔️",
+        "warrior": "🛡️",
+        "mage": "🔮",
+        "ranger": "🏹",
+    }
+    class_emoji = class_emojis.get(user.character_class, "⚔️")
+
+    profile_text = (
+        f"👤 **Profile: {user.display_name or user.username}**\n"
+        f"━━━━━━━━━━━━━━━━━\n"
+        f"📛 Name: {user.display_name or '—'}\n"
+        f"🔑 Login: {user.username}\n"
+        f"{class_emoji} Class: {user.character_class.capitalize()}\n"
+        f"🎚️ Level: {user.level}\n"
+        f"⭐ Experience: {user.experience}\n"
+        f"🪙 Coins: {user.coins}\n"
+        f"━━━━━━━━━━━━━━━━━"
+    )
+
+    if callback.message:
+        await callback.message.answer(profile_text)
 
 
 # ---------------------------------------------------------------------------
@@ -672,10 +769,10 @@ async def process_register_password(message: types.Message, state: FSMContext, s
 async def cmd_help(message: types.Message):
     """Handle the /help command — list all available bot commands."""
     await message.answer(
-        "Commands:\n"
-        "/start - open the LifeQuest Mini App\n"
-        "/login - legacy chat login\n"
-        "/profile - show your RPG profile\n"
-        "/delete_account - delete an account by login and password\n"
-        "/cancel - cancel the current action"
+        "📋 **Available commands:**\n\n"
+        "/start - start the game / create a character\n"
+        "/profile - show your character profile\n"
+        "/delete_account - delete your account\n"
+        "/cancel - cancel the current action\n"
+        "/help - show this message"
     )
