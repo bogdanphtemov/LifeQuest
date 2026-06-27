@@ -10,11 +10,25 @@ from database.users import Base
 from handlers import profile, start
 from typing import Any, Callable, Dict
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+def _setup_logging():
+    """Configure root logger with our standard format.
+
+    Extracted into a function so it can be called both at module load
+    and after Alembic's fileConfig() resets the root logger.
+    """
+    # Remove any handlers that Alembic may have attached
+    root = logging.getLogger()
+    for h in list(root.handlers):
+        root.removeHandler(h)
+    root.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    ))
+    root.addHandler(handler)
+
+
+_setup_logging()
 logger = logging.getLogger(__name__)
 
 # Create database engine and session maker
@@ -48,14 +62,27 @@ class DatabaseMiddleware(BaseMiddleware):
 
 
 def init_db():
-    """Initialize database"""
-    # Create tables from SQLAlchemy models if they do not exist yet.
-    Base.metadata.create_all(bind=engine)
-    # Apply Alembic migrations (безпечні DDL замість сирого SQL)
+    """Initialize database using Alembic migrations.
+
+    Alembic is the single source of truth for schema management.
+    The migration chain (alembic/versions/) will create, alter, or
+    skip tables as needed, so there is no need to call
+    Base.metadata.create_all() beforehand.
+
+    Warning: Alembic's env.py calls logging.config.fileConfig() which
+    OVERWRITES the root logger with settings from alembic.ini (level=WARNING).
+    We re-configure logging afterwards so that __main__ logs are visible.
+    """
     from alembic.config import Config
     from alembic import command
     alembic_cfg = Config('alembic.ini')
     command.upgrade(alembic_cfg, 'head')
+
+    # Alembic's fileConfig() resets the root logger (level, handlers, formatter).
+    # The disable_existing_loggers=False fix in alembic/env.py prevents existing
+    # loggers from being silenced, but we still need to restore the root logger
+    # to keep our own format and level after the migration completes.
+    _setup_logging()
 
 
 

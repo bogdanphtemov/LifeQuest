@@ -28,6 +28,8 @@ import os
 import sys
 from flask import Flask, abort, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -48,6 +50,15 @@ FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'fr
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
 CORS(app)
+
+# --- Rate Limiter ---
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+    enabled=True,
+)
 
 # Configuration
 app.config['ENV'] = os.getenv('ENV', 'development')

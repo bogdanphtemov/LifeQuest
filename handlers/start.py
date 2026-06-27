@@ -26,10 +26,67 @@ import hashlib
 import hmac
 import logging
 import os
+import time
+from collections import defaultdict
 from urllib.parse import urlparse
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# In-memory rate limiting (sliding window per Telegram user ID)
+# ---------------------------------------------------------------------------
+
+_login_attempts: dict[int, list[float]] = defaultdict(list)
+"""Track timestamps of failed login attempts per user_id."""
+
+MAX_LOGIN_ATTEMPTS = 5
+"""Max consecutive failed login attempts before lockout."""
+
+LOGIN_WINDOW_SECONDS = 300  # 5 хвилин
+"""Time window for counting login attempts."""
+
+
+def _is_login_rate_limited(user_id: int) -> bool:
+    """
+    Check if the user exceeded the login attempt limit.
+
+    Removes expired attempts (older than LOGIN_WINDOW_SECONDS),
+    then checks if the count is still at or above MAX_LOGIN_ATTEMPTS.
+    """
+    now = time.time()
+    attempts = _login_attempts[user_id]
+    # Keep only attempts within the window
+    _login_attempts[user_id] = [t for t in attempts if now - t < LOGIN_WINDOW_SECONDS]
+    if len(_login_attempts[user_id]) >= MAX_LOGIN_ATTEMPTS:
+        return True
+    _login_attempts[user_id].append(now)
+    return False
+
+
+def _reset_login_attempts(user_id: int) -> None:
+    """Clear the attempt counter on successful login."""
+    _login_attempts.pop(user_id, None)
+
+
+# ---------------------------------------------------------------------------
+# Registration rate limit (separate counter for a different threshold)
+# ---------------------------------------------------------------------------
+
+_register_attempts: dict[int, list[float]] = defaultdict(list)
+MAX_REGISTER_ATTEMPTS = 3
+REGISTER_WINDOW_SECONDS = 3600  # 1 година
+
+
+def _is_register_rate_limited(user_id: int) -> bool:
+    """Check if the user exceeded the registration attempt limit."""
+    now = time.time()
+    attempts = _register_attempts[user_id]
+    _register_attempts[user_id] = [t for t in attempts if now - t < REGISTER_WINDOW_SECONDS]
+    if len(_register_attempts[user_id]) >= MAX_REGISTER_ATTEMPTS:
+        return True
+    _register_attempts[user_id].append(now)
+    return False
 
 
 class AuthStates(StatesGroup):
@@ -325,7 +382,18 @@ async def process_existing_password(
     On success, calls mark_authenticated() and confirms login.
     On failure, stays in this state to allow retry.
     """
-    user = get_user_by_telegram_id(session, message.from_user.id)
+    user_id = message.from_user.id
+
+    # ---- Rate limit check ----
+    if _is_login_rate_limited(user_id):
+        await message.answer(
+            "⛔ Too many login attempts. Please wait 5 minutes and try again."
+        )
+        logger.warning(f"Rate limit hit: user {user_id} exceeded login attempts")
+        return
+    # --------------------------
+
+    user = get_user_by_telegram_id(session, user_id)
     if not user:
         await message.answer("Account was not found. Use /start to register.")
         await state.clear()
@@ -334,6 +402,9 @@ async def process_existing_password(
     if not verify_password(message.text or "", user.password_hash):
         await message.answer("Wrong password. Try again or use /start.")
         return
+
+    # Successful login — reset counter
+    _reset_login_attempts(user_id)
 
     await mark_authenticated(state, user)
     await message.answer(
@@ -370,6 +441,17 @@ async def process_login_password(message: types.Message, state: FSMContext, sess
     On success, links the Telegram ID to the account (if not already linked
     to another user) and calls mark_authenticated().
     """
+    user_id = message.from_user.id
+
+    # ---- Rate limit check ----
+    if _is_login_rate_limited(user_id):
+        await message.answer(
+            "⛔ Too many login attempts. Please wait 5 minutes and try again."
+        )
+        logger.warning(f"Rate limit hit: user {user_id} exceeded login attempts")
+        return
+    # --------------------------
+
     data = await state.get_data()
     user = get_user_by_login(session, data.get("login", ""))
 
@@ -386,6 +468,9 @@ async def process_login_password(message: types.Message, state: FSMContext, sess
     if user.telegram_id != message.from_user.id:
         user.telegram_id = message.from_user.id
         session.commit()
+
+    # Successful login — reset counter
+    _reset_login_attempts(user_id)
 
     await mark_authenticated(state, user)
     await message.answer(
@@ -436,6 +521,17 @@ async def process_delete_password(message: types.Message, state: FSMContext, ses
     Performs a final verification, then deletes the User row from the database.
     On any error, rolls back the transaction and notifies the user.
     """
+    user_id = message.from_user.id
+
+    # ---- Rate limit check (also protect deletion) ----
+    if _is_login_rate_limited(user_id):
+        await message.answer(
+            "⛔ Too many attempts. Please wait 5 minutes and try again."
+        )
+        logger.warning(f"Rate limit hit: user {user_id} exceeded delete attempts")
+        return
+    # --------------------------------------------------
+
     data = await state.get_data()
     login = data.get("delete_login", "")
     user = get_user_by_login(session, login)
@@ -464,6 +560,7 @@ async def process_delete_password(message: types.Message, state: FSMContext, ses
         await state.clear()
         return
 
+    _reset_login_attempts(user_id)
     await state.clear()
     await message.answer(
         f"Account '{deleted_login}' was deleted successfully."
@@ -482,6 +579,18 @@ async def process_register_username(message: types.Message, state: FSMContext, s
 
     Checks uniqueness and format rules. On success, transitions to password input.
     """
+    user_id = message.from_user.id
+
+    # ---- Rate limit check for registration ----
+    if _is_register_rate_limited(user_id):
+        await message.answer(
+            "⛔ You have reached the maximum number of registration attempts "
+            "for today. Please try again later."
+        )
+        logger.warning(f"Rate limit hit: user {user_id} exceeded register attempts")
+        return
+    # -------------------------------------------
+
     login = normalize_username(message.text or "")
     validation_error = validate_username(login)
     if validation_error:
