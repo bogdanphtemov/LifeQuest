@@ -1,0 +1,462 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "description": "Design tokens for the Dark Fantasy RPG Telegram Mini App. Import this file to maintain consistent styling across all components.",
+
+  "colors": {
+    "brand": {
+      "primaryDark": { "value": "#0a0e27", "description": "Primary dark background (main app background)" },
+      "secondaryDark": { "value": "#16213e", "description": "Secondary dark surface (forms, inputs)" },
+      "tertiaryDark": { "value": "#1a1a2e", "description": "Tertiary dark surface (panels, cards)" }
+    },
+    "accent": {
+      "red": { "value": "#e94560", "description": "Primary accent — danger, CTAs, emphasis" },
+      "gold": { "value": "#d4af37", "description": "Secondary accent — headings, highlights, success" }
+    },
+    "text": {
+      "primary": { "value": "#c0c0c0", "description": "Primary text on dark backgrounds" },
+      "secondary": { "value": "#808080", "description": "Secondary / muted text" }
+    },
+    "feedback": {
+      "success": { "value": "#4caf50", "description": "Success states" },
+      "error": { "value": "#f44336", "description": "Error states" },
+      "errorText": { "value": "#ff6b6b", "description": "Error message text" },
+      "successText": { "value": "#81c784", "description": "Success message text" }
+    },
+    "border": {
+      "default": { "value": "#404854", "description": "Default border color" }
+    },
+    "pixelScene": {
+      "skyTop": { "value": "#5b3a8c", "description": "Pixel scene sky — top" },
+      "skyMid": { "value": "#c45a28", "description": "Pixel scene sky — middle" },
+      "skyLow": { "value": "#f0a830", "description": "Pixel scene sky — low" },
+      "skyGlow": { "value": "#ffe566", "description": "Pixel scene sky — sun glow" },
+      "hillFar": { "value": "#3d2860", "description": "Pixel scene distant hills" },
+      "hillNear": { "value": "#2d6b35", "description": "Pixel scene near hills" },
+      "wheatLight": { "value": "#e8c547", "description": "Wheat field — light" },
+      "wheatMid": { "value": "#c9a030", "description": "Wheat field — middle" },
+      "wheatDark": { "value": "#8b6914", "description": "Wheat field — dark" },
+      "pathColor": { "value": "#c4a060", "description": "Dirt path — main" },
+      "pathDark": { "value": "#8b7040", "description": "Dirt path — dark" },
+      "woodLight": { "value": "#c8956c", "description": "Wood — light" },
+      "woodMid": { "value": "#a06840", "description": "Wood — middle" },
+      "woodDark": { "value": "#6b4423", "description": "Wood — dark" },
+      "woodEdge": { "value": "#4a2e18", "description": "Wood — edge/nail" },
+      "chainMetal": { "value": "#8a8a9a", "description": "Chain — metal" },
+      "chainShadow": { "value": "#4a4a58", "description": "Chain — shadow" },
+      "roofRed": { "value": "#8b3030", "description": "House roof — red" },
+      "roofDark": { "value": "#5c2020", "description": "House roof — dark" },
+      "wallCream": { "value": "#d4b896", "description": "House wall — cream" },
+      "wallShadow": { "value": "#a08060", "description": "House wall — shadow" },
+      "millWhite": { "value": "#e8e0d0", "description": "Windmill — white" },
+      "millBlade": { "value": "#6b5030", "description": "Windmill — blade" }
+    },
+    "semantic": {
+      "btnPrimaryBg": { "value": "transparent", "description": "Primary button background" },
+      "btnPrimaryText": { "value": "#e94560", "description": "Primary button text" },
+      "btnPrimaryHoverBg": { "value": "rgba(233, 69, 96, 0.2)", "description": "Primary button hover background" },
+      "btnSuccessBg": { "value": "transparent", "description": "Success button background" },
+      "btnSuccessText": { "value": "#d4af37", "description": "Success button text" },
+      "btnSuccessHoverBg": { "value": "rgba(212, 175, 55, 0.2)", "description": "Success button hover background" },
+      "btnSecondaryText": { "value": "#808080", "description": "Secondary button text" },
+      "btnSecondaryHoverText": { "value": "#c0c0c0", "description": "Secondary button hover text" },
+      "inputBg": { "value": "#16213e", "description": "Input background" },
+      "inputFocusBg": { "value": "rgba(22, 33, 62, 0.8)", "description": "Input background on focus" },
+      "inputFocusBorder": { "value": "#d4af37", "description": "Input border on focus" },
+      "errorBg": { "value": "rgba(244, 67, 54, 0.2)", "description": "Error message background" },
+      "successBg": { "value": "rgba(76, 175, 80, 0.2)", "description": "Success message background" },
+      "cardBg": { "value": "rgba(22, 33, 62, 0.5)", "description": "Card / character card background" },
+      "statRowBorder": { "value": "rgba(64, 72, 84, 0.3)", "description": "Stat row divider" },
+      "woodSignBg": { "value": "rgba(255, 248, 230, 0.85)", "description": "Auth wood sign input background" },
+      "woodSignFocusBg": { "value": "#fff8e8", "description": "Auth wood sign input focus background" }
+    }
+  },
+
+  "spacing": {
+    "0":   { "value": "0px",   "description": "No spacing" },
+    "1":   { "value": "2px",   "description": "Micro spacing" },
+    "2":   { "value": "4px",   "description": "Extra small spacing" },
+    "3":   { "value": "6px",   "description": "Small spacing" },
+    "4":   { "value": "8px",   "description": "Small-medium spacing" },
+    "5":   { "value": "10px",  "description": "Medium-small spacing" },
+    "6":   { "value": "12px",  "description": "Medium spacing" },
+    "7":   { "value": "14px",  "description": "Medium-large spacing" },
+    "8":   { "value": "15px",  "description": "Panel padding" },
+    "9":   { "value": "16px",  "description": "Large spacing" },
+    "10":  { "value": "18px",  "description": "Large spacing +" },
+    "11":  { "value": "20px",  "description": "Extra large spacing" },
+    "12":  { "value": "24px",  "description": "Section padding" },
+    "13":  { "value": "28px",  "description": "Wood sign top padding" },
+    "14":  { "value": "30px",  "description": "Container padding" },
+    "15":  { "value": "32px",  "description": "Large section padding" },
+    "16":  { "value": "40px",  "description": "Extra large section padding" },
+    "17":  { "value": "48px",  "description": "Massive spacing" },
+    "18":  { "value": "52px",  "description": "Chain height" },
+    "19":  { "value": "56px",  "description": "House height" },
+    "20":  { "value": "64px",  "description": "Sun size" }
+  },
+
+  "borderRadius": {
+    "none":    { "value": "0px",    "description": "No rounding — pixel style" },
+    "xs":      { "value": "2px",    "description": "Extra small — wood sign, some panels" },
+    "sm":      { "value": "4px",    "description": "Small — inputs, buttons, panels, cards" },
+    "md":      { "value": "8px",    "description": "Medium — future modals" },
+    "lg":      { "value": "10px",   "description": "Large — future use" },
+    "xl":      { "value": "12px",   "description": "Extra large — future use" },
+    "full":    { "value": "50%",    "description": "Full — circular elements (nails, hooks)" }
+  },
+
+  "fontSize": {
+    "xs":    { "value": "7px",   "description": "Extra small — form hints (pixel)" },
+    "sm":    { "value": "9px",   "description": "Small — form labels (pixel)" },
+    "md":    { "value": "10px",  "description": "Medium — buttons, inputs (pixel)" },
+    "base":  { "value": "12px",  "description": "Base — error messages, secondary text" },
+    "md2":   { "value": "13px",  "description": "Medium+ — player info, error messages" },
+    "lg":    { "value": "14px",  "description": "Large — form labels, inputs, buttons" },
+    "xl":    { "value": "15px",  "description": "Extra large — error content" },
+    "2xl":   { "value": "16px",  "description": "2x large — game subtitle, stat values, loading" },
+    "3xl":   { "value": "18px",  "description": "3x large — coming soon" },
+    "4xl":   { "value": "20px",  "description": "4x large — form titles" },
+    "5xl":   { "value": "24px",  "description": "5x large — game title (mobile)" },
+    "6xl":   { "value": "28px",  "description": "6x large — error game title" },
+    "7xl":   { "value": "32px",  "description": "7x large — game title (desktop)" },
+    "pixelClamp": {
+      "title":     { "value": "clamp(14px, 3.5vw, 20px)", "description": "Game title on wood sign" },
+      "subtitle":  { "value": "clamp(8px, 2vw, 10px)",    "description": "Game subtitle on wood sign" },
+      "formTitle": { "value": "clamp(9px, 2.2vw, 12px)",  "description": "Form title on wood sign" },
+      "formLabel": { "value": "clamp(7px, 1.8vw, 9px)",   "description": "Form label on wood sign" },
+      "formInput": { "value": "clamp(8px, 2vw, 10px)",    "description": "Form input on wood sign" },
+      "btn":       { "value": "clamp(8px, 2vw, 10px)",    "description": "Button text on wood sign" },
+      "hint":      { "value": "clamp(6px, 1.5vw, 7px)",   "description": "Hint on wood sign" },
+      "msg":       { "value": "clamp(6px, 1.5vw, 8px)",   "description": "Error/success message on wood sign" },
+      "welcome":   { "value": "clamp(7px, 1.8vw, 9px)",   "description": "Welcome text on wood sign" }
+    }
+  },
+
+  "fontWeight": {
+    "normal":  { "value": "400", "description": "Normal text weight" },
+    "bold":    { "value": "700", "description": "Bold for headings, labels, stat values" }
+  },
+
+  "fontFamily": {
+    "pixel": {
+      "value": "'Press Start 2P', 'Courier New', 'Consolas', 'Monaco', monospace",
+      "description": "Pixel font stack — for pixel-art aesthetic text"
+    },
+    "mono": {
+      "value": "'Courier New', 'Consolas', 'Monaco', monospace",
+      "description": "Monospace font stack — for inputs, code"
+    },
+    "ui": {
+      "value": "'Arial', sans-serif",
+      "description": "UI font stack — for general interface text"
+    }
+  },
+
+  "lineHeight": {
+    "tight":   { "value": "1.2",  "description": "Tight — headings" },
+    "normal":  { "value": "1.5",  "description": "Normal — body text" },
+    "relaxed": { "value": "1.6",  "description": "Relaxed — pixel text, game content" },
+    "loose":   { "value": "1.8",  "description": "Loose — wood sign pixel paragraphs" }
+  },
+
+  "letterSpacing": {
+    "sm":    { "value": "1px",   "description": "Small — buttons, pixel elements" },
+    "md":    { "value": "2px",   "description": "Medium — game title" }
+  },
+
+  "animation": {
+    "duration": {
+      "instant":  { "value": "0.1s",  "description": "Instant — button active press" },
+      "fast":     { "value": "0.3s",  "description": "Fast — input focus, hover transitions" },
+      "normal":   { "value": "0.4s",  "description": "Normal — walker bob" },
+      "slow":     { "value": "1.5s",  "description": "Slow — loading pulse" },
+      "glow":     { "value": "3s",    "description": "Glow — title glow, window glow, scanline" },
+      "sway":     { "value": "4s",    "description": "Sway — wheat sway" },
+      "signSway": { "value": "5s",    "description": "Sign sway — hanging wood sign" },
+      "sunPulse": { "value": "6s",    "description": "Sun pulse — sky sun pulsing" },
+      "blades":   { "value": "8s",    "description": "Blades — windmill blades spin" },
+      "walker1":  { "value": "18s",   "description": "Walker 1 — right walker duration" },
+      "walker2":  { "value": "22s",   "description": "Walker 2 — left walker duration" },
+      "walker3":  { "value": "24s",   "description": "Walker 3 — right walker slow duration" },
+      "cloud1":   { "value": "40s",   "description": "Cloud 1 — slow drift" },
+      "cloud2":   { "value": "55s",   "description": "Cloud 2 — very slow drift" }
+    },
+    "timingFunction": {
+      "linear":    { "value": "linear",         "description": "Linear — walkers, clouds, blades" },
+      "ease":      { "value": "ease",           "description": "Ease — default transitions" },
+      "easeInOut": { "value": "ease-in-out",    "description": "Ease-in-out — glow, sway, pulse" },
+      "infinite":  { "value": "infinite",       "description": "Infinite — repeating animations" }
+    },
+    "properties": {
+      "transitionBase": { "value": "all 0.3s ease", "description": "Default transition for interactive elements" }
+    },
+    "keyframes": {
+      "pulseText":    { "description": "Opacity pulse for loading text" },
+      "glow":         { "description": "Text-shadow pulse for glowing title" },
+      "scan":         { "description": "Scanline vertical movement" },
+      "sunPulse":     { "description": "Sun scale and opacity pulse" },
+      "cloudDrift":   { "description": "Cloud horizontal drift" },
+      "bladesSpin":   { "description": "Windmill blades rotation" },
+      "windowGlow":   { "description": "House window opacity pulse" },
+      "wheatSway":    { "description": "Wheat stalks skew animation" },
+      "walkerBob":    { "description": "Walker vertical bob while walking" },
+      "walkRight":    { "description": "Walker horizontal right movement" },
+      "walkLeft":     { "description": "Walker horizontal left movement" },
+      "signSway":     { "description": "Hanging wood sign rotation" }
+    }
+  },
+
+  "shadow": {
+    "sm": {
+      "value": "0 0 10px rgba(0, 0, 0, 0.8)",
+      "description": "Small shadow — panels, cards"
+    },
+    "md": {
+      "value": "0 0 20px rgba(0, 0, 0, 0.9)",
+      "description": "Medium shadow — deep surface emphasis"
+    },
+    "glowGold": {
+      "value": "0 0 10px rgba(212, 175, 55, 0.3), 0 0 20px rgba(233, 69, 96, 0.2), inset 0 0 10px rgba(212, 175, 55, 0.1)",
+      "description": "Gold glow — game panels border glow"
+    },
+    "glowTitle": {
+      "value": "2px 2px 4px rgba(0, 0, 0, 0.8), 0 0 10px rgba(212, 175, 55, 0.5), 0 0 20px rgba(233, 69, 96, 0.3)",
+      "description": "Title glow — game title text shadow"
+    },
+    "glowTitleMid": {
+      "value": "2px 2px 4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.8), 0 0 30px rgba(233, 69, 96, 0.5)",
+      "description": "Title glow mid — game title at 50% animation"
+    },
+    "inputFocus": {
+      "value": "0 0 10px rgba(212, 175, 55, 0.3)",
+      "description": "Input focus glow"
+    },
+    "btnPrimaryHover": {
+      "value": "0 0 15px rgba(233, 69, 96, 0.4)",
+      "description": "Primary button hover glow"
+    },
+    "btnSuccessHover": {
+      "value": "0 0 15px rgba(212, 175, 55, 0.4)",
+      "description": "Success button hover glow"
+    },
+    "btnSecondaryHover": {
+      "value": "0 0 10px rgba(192, 192, 192, 0.3)",
+      "description": "Secondary button hover glow"
+    },
+    "woodSign": {
+      "value": "inset 0 2px 0 rgba(255,255,255,0.15), inset 0 -4px 0 rgba(0,0,0,0.2), 0 8px 0 #4a2e18, 0 12px 24px rgba(0,0,0,0.45)",
+      "description": "Wood sign board shadow"
+    },
+    "woodSignBtnPrimary": {
+      "value": "0 4px 0 #2a5018, 0 6px 12px rgba(0,0,0,0.3)",
+      "description": "Wood sign primary button shadow"
+    },
+    "woodSignBtnPrimaryHover": {
+      "value": "0 4px 0 #2a5018, 0 8px 16px rgba(0,0,0,0.35)",
+      "description": "Wood sign primary button hover shadow"
+    },
+    "woodSignBtnSuccess": {
+      "value": "0 4px 0 #604010, 0 6px 12px rgba(0,0,0,0.3)",
+      "description": "Wood sign success button shadow"
+    },
+    "woodSignBtnSuccessHover": {
+      "value": "0 4px 0 #604010, 0 8px 16px rgba(0,0,0,0.35)",
+      "description": "Wood sign success button hover shadow"
+    },
+    "woodSignBtnSecondary": {
+      "value": "0 3px 0 #6b4423",
+      "description": "Wood sign secondary button shadow"
+    },
+    "woodSignBtnSecondaryHover": {
+      "value": "0 3px 0 #6b4423, 0 5px 10px rgba(0,0,0,0.2)",
+      "description": "Wood sign secondary button hover shadow"
+    },
+    "woodSignInput": {
+      "value": "inset 2px 2px 0 rgba(0,0,0,0.08), 0 3px 0 #4a2e18",
+      "description": "Wood sign input shadow"
+    },
+    "woodSignInputFocus": {
+      "value": "inset 2px 2px 0 rgba(0,0,0,0.06), 0 0 0 2px #e8c547, 0 3px 0 #4a2e18",
+      "description": "Wood sign input focus shadow"
+    },
+    "sunGlow": {
+      "value": "0 0 0 4px #f0c040, 0 0 0 8px rgba(240, 192, 64, 0.5), 0 0 40px 12px rgba(255, 220, 80, 0.4)",
+      "description": "Pixel sun glow"
+    },
+    "windowGlow": {
+      "value": "0 0 6px 2px rgba(255, 220, 80, 0.6)",
+      "description": "House window glow"
+    },
+    "vignette": {
+      "value": "radial-gradient(ellipse at center 40%, transparent 40%, rgba(0, 0, 0, 0.35) 100%)",
+      "description": "Vignette overlay for auth screen depth"
+    }
+  },
+
+  "zIndex": {
+    "background":  { "value": "0",  "description": "Background elements — pixel scene base" },
+    "scene":       { "value": "1",  "description": "Scene overlay — scanlines, decorative elements" },
+    "vignette":    { "value": "5",  "description": "Vignette — dark vignette overlay" },
+    "signHanger":  { "value": "10", "description": "Sign hanger — wood sign and chains" },
+    "signHook":    { "value": "11", "description": "Sign hook — above sign hanger" },
+    "modal":       { "value": "50", "description": "Modal overlays" },
+    "toast":       { "value": "100", "description": "Toast notifications" }
+  },
+
+  "breakpoints": {
+    "mobile":  { "value": "480px",  "description": "Small mobile — pixel scene adjustments" },
+    "tablet":  { "value": "768px",  "description": "Tablet — game content becomes single column" },
+    "desktop": { "value": "1024px", "description": "Desktop — full layout" },
+    "wide":    { "value": "1200px", "description": "Wide — container max-width" }
+  },
+
+  "layout": {
+    "minWidth": {
+      "value": "320px",
+      "description": "Minimum supported viewport width"
+    },
+    "containerMaxWidth": {
+      "auth": {
+        "value": "500px",
+        "description": "Auth / dashboard container max width"
+      },
+      "game": {
+        "value": "1000px",
+        "description": "Game content max width"
+      },
+      "app": {
+        "value": "1200px",
+        "description": "App global container max width"
+      }
+    },
+    "gridColumns": {
+      "gameDesktop": {
+        "value": "250px 1fr 150px",
+        "description": "Game screen grid — player panel, game area, actions panel"
+      },
+      "gameMobile": {
+        "value": "1fr",
+        "description": "Game screen grid — single column on mobile"
+      }
+    },
+    "panelWidth": {
+      "playerPanel": { "value": "250px", "description": "Player panel width on desktop" },
+      "actionsPanel": { "value": "150px", "description": "Actions panel width on desktop" }
+    }
+  },
+
+  "opacity": {
+    "disabled":  { "value": "0.6",  "description": "Disabled state opacity" },
+    "loading":   { "value": "0.6",  "description": "Loading state opacity" },
+    "hoverBg":   { "value": "0.2",  "description": "Hover background opacity" },
+    "scanlines": { "value": "0.03", "description": "Scanline overlay opacity" },
+    "crtOverlay": { "value": "0.1", "description": "CRT scanline pattern opacity" },
+    "pathEdge": { "value": "0.6",   "description": "Path edge opacity" },
+    "wheatRow": { "value": "0.4",   "description": "Wheat row pattern opacity" }
+  },
+
+  "sizes": {
+    "pixelScene": {
+      "sun":           { "value": "64px",  "description": "Pixel sun width/height" },
+      "windmillWidth": { "value": "80px",  "description": "Windmill width" },
+      "windmillHeight": { "value": "120px", "description": "Windmill height" },
+      "cloud1Width":   { "value": "80px",  "description": "Cloud 1 width" },
+      "cloud2Width":   { "value": "60px",  "description": "Cloud 2 width" },
+      "houseLeftWidth": { "value": "56px", "description": "Left house width" },
+      "houseLeftHeight": { "value": "56px", "description": "Left house height" },
+      "houseRightWidth": { "value": "48px", "description": "Right house width" },
+      "houseRightHeight": { "value": "48px", "description": "Right house height" },
+      "signWidth":     { "value": "420px", "description": "Wood sign max width" },
+      "pathWidth":     { "value": "80px",  "description": "Dirt path width" },
+      "walkerWidth":   { "value": "8px",   "description": "Pixel walker width" },
+      "walkerHeight":  { "value": "12px",  "description": "Pixel walker height" }
+    },
+    "icon": {
+      "nail":          { "value": "8px",   "description": "Wood nail diameter" }
+    }
+  },
+
+  "borderWidth": {
+    "none":     { "value": "0px",    "description": "No border" },
+    "xs":       { "value": "1px",    "description": "Extra thin — error/success message border" },
+    "sm":       { "value": "2px",    "description": "Thin — panel outlines, auth section bottom" },
+    "md":       { "value": "3px",    "description": "Medium — input borders, wood sign elements" },
+    "lg":       { "value": "4px",    "description": "Thick — chain hook border, windmill trim" },
+    "xl":       { "value": "6px",    "description": "Extra thick — wood sign border" }
+  },
+
+  "gradients": {
+    "gameScreen": {
+      "value": "linear-gradient(135deg, #0a0e27 0%, #16213e 100%)",
+      "description": "Game screen background gradient"
+    },
+    "wheatField": {
+      "value": "linear-gradient(180deg, #4a8a30 0%, #2d6b35 15%, #8b6914 100%)",
+      "description": "Wheat field gradient"
+    },
+    "pixelSky": {
+      "value": "linear-gradient(180deg, #5b3a8c 0%, #7a4080 18%, #c45a28 45%, #f0a830 72%, #ffe566 100%)",
+      "description": "Pixel scene sky gradient"
+    },
+    "dirtPath": {
+      "value": "linear-gradient(180deg, transparent 0%, #c4a060 20%, #8b7040 100%)",
+      "description": "Dirt path gradient"
+    },
+    "btnPrimaryWood": {
+      "value": "linear-gradient(180deg, #6a9a40 0%, #4a7a28 100%)",
+      "description": "Wood sign primary button gradient"
+    },
+    "btnPrimaryWoodHover": {
+      "value": "linear-gradient(180deg, #7aaa50 0%, #5a8a38 100%)",
+      "description": "Wood sign primary button hover gradient"
+    },
+    "btnSuccessWood": {
+      "value": "linear-gradient(180deg, #c89030 0%, #a07020 100%)",
+      "description": "Wood sign success button gradient"
+    },
+    "btnSuccessWoodHover": {
+      "value": "linear-gradient(180deg, #d8a040 0%, #b08030 100%)",
+      "description": "Wood sign success button hover gradient"
+    },
+    "woodSignBg": {
+      "value": "linear-gradient(180deg, #c8956c 0%, #a06840 50%, #6b4423 100%)",
+      "description": "Wood sign board background gradient"
+    }
+  },
+
+  "clipPath": {
+    "hillFar": {
+      "value": "polygon(0 100%, 8% 55%, 18% 70%, 30% 40%, 42% 60%, 55% 30%, 68% 55%, 80% 35%, 92% 60%, 100% 45%, 100% 100%)",
+      "description": "Distant hill silhouette"
+    },
+    "hillNear": {
+      "value": "polygon(0 100%, 5% 60%, 15% 75%, 25% 45%, 38% 65%, 50% 35%, 62% 55%, 75% 40%, 88% 65%, 100% 50%, 100% 100%)",
+      "description": "Near hill silhouette"
+    },
+    "houseRoof": {
+      "value": "polygon(50% 0%, 0% 100%, 100% 100%)",
+      "description": "House roof triangle"
+    },
+    "dirtPath": {
+      "value": "polygon(35% 0%, 65% 0%, 80% 100%, 20% 100%)",
+      "description": "Dirt path trapezoid"
+    }
+  },
+
+  "imageRendering": {
+    "pixelated": {
+      "value": "pixelated",
+      "description": "Pixel-art crisp rendering for scene elements"
+    },
+    "crispEdges": {
+      "value": "crisp-edges",
+      "description": "Crisp edges for pixel scene"
+    }
+  },
+
+  "meta": {
+    "lastUpdated": "2025-01-10",
+    "project": "Dark Fantasy RPG — Telegram Mini App",
+    "description": "Complete design token system for consistent styling across all components. Tailwind CSS and CSS custom properties should reference these tokens."
+  }
+}
