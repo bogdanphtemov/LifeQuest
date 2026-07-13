@@ -40,21 +40,19 @@ export async function checkCharacterExistence(): Promise<CharacterCheckResult> {
     const response = await fetchTelegramSession(tg.initData);
 
     if (response.registered && response.user) {
-      const user = response.user;
+      const user = response.user as Record<string, unknown>;
 
       // Check if character has textures / appearance info
-      const hasTextures = !!(
-        user.textures ||
-        user.appearance ||
-        user.texture ||
-        user.texture_path ||
-        user.sprite_data
-      );
+      const textureKeys = ['textures', 'appearance', 'texture', 'texture_path', 'sprite_data'] as const;
+      const hasTextures = textureKeys.some((key) => {
+        const value = user[key];
+        return value !== null && value !== undefined && value !== '';
+      });
 
       return {
         exists: true,
         hasTextures,
-        user: user as unknown as Record<string, unknown>,
+        user,
       };
     }
 
