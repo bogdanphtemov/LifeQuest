@@ -107,6 +107,9 @@ htmlcov/
 idea.txt
 problems.txt
 
+# Backups
+frontend/css-backup/
+
 # Temporary files
 *.tmp
 *.temp
