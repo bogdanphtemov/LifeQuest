@@ -2,7 +2,7 @@
 
    Thin wrapper around the Fetch API for communicating with the LifeQuest
    Flask backend. Every network request flows through this module, keeping
-   the rest of the frontend (auth.js, ui.js) free of raw fetch() calls.
+   the frontend dashboard module (dashboard.js) free of raw fetch() calls.
 
    Architectural notes:
    - The base URL is determined at module load time based on the protocol.
@@ -12,8 +12,11 @@
    - Every response from the server is expected to be JSON with at minimum
      a "status" field ("ok" | "error"). Errors are thrown as JavaScript
      Error objects, leaving caller code to catch and display them.
-   - The global singleton 'api' is used by auth.js; no other module needs
-     direct access to the APIClient class.
+   - The global singleton 'api' is used by dashboard.js; no other module
+     needs direct access to the APIClient class.
+   - Only the telegramSession() and healthCheck() methods are currently
+     used by the simplified frontend. The other methods (register, login,
+     getUser) are kept as legacy for future use.
 */
 
 const API_BASE_URL = window.location.protocol === 'file:'
@@ -72,7 +75,7 @@ class APIClient {
     }
 
     // =====================================================================
-    // Auth endpoints — map 1:1 to routes in backend/routes/auth_routes.py
+    // Auth endpoints
     // =====================================================================
 
     /**
@@ -96,85 +99,10 @@ class APIClient {
     }
 
     /**
-     * POST /api/auth/telegram/register
-     *
-     * Create a new RPG character linked to a Telegram account. Used by the
-     * Mini App registration form; the character receives a non-usable
-     * password hash (Telegram-only account with no password).
-     *
-     * @param {string} initData - Telegram initData for verification.
-     * @param {string} username - Chosen in-game username (3-20 chars).
-     * @param {string} displayName - Optional display / hero name.
-     * @param {string} [characterClass='adventurer'] - RPG class.
-     * @returns {Promise<object>} - { status, message, user }.
-     */
-    async telegramRegister(initData, username, displayName, characterClass = 'adventurer') {
-        return this.request('/auth/telegram/register', {
-            method: 'POST',
-            body: JSON.stringify({
-                init_data: initData,
-                username,
-                display_name: displayName,
-                character_class: characterClass,
-                avatar: 'pixel_adventurer',
-            }),
-        });
-    }
-
-    /**
-     * POST /api/auth/register
-     *
-     * Legacy registration with a username and password (not Telegram-only).
-     * Stored password is hashed with PBKDF2-HMAC-SHA256 on the server.
-     *
-     * @param {string} username - Chosen username.
-     * @param {string} password - Plain-text password (hashed server-side).
-     * @param {number} telegramId - Telegram user ID for linking.
-     * @param {string} [firstName=''] - Optional first name.
-     * @param {string} [lastName=''] - Optional last name.
-     * @returns {Promise<object>} - { status, message, user }.
-     */
-    async register(username, password, telegramId, firstName = '', lastName = '') {
-        return this.request('/auth/register', {
-            method: 'POST',
-            body: JSON.stringify({
-                username,
-                password,
-                telegram_id: telegramId,
-                first_name: firstName,
-                last_name: lastName,
-            }),
-        });
-    }
-
-    /**
-     * POST /api/auth/login
-     *
-     * Authenticate with username + password and link the Telegram ID if
-     * not already linked. Serves as the legacy login fallback for users
-     * who registered before Telegram-only accounts were introduced.
-     *
-     * @param {string} username - Normalized username.
-     * @param {string} password - Plain-text password.
-     * @param {number} telegramId - Telegram user ID (to link or verify).
-     * @returns {Promise<object>} - { status, message, user }.
-     */
-    async login(username, password, telegramId) {
-        return this.request('/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({
-                username,
-                password,
-                telegram_id: telegramId,
-            }),
-        });
-    }
-
-    /**
      * GET /api/auth/user/:telegramId
      *
-     * Fetch a user profile by Telegram ID. A read-only endpoint used
-     * after session resolution to load character data.
+     * Fetch a user profile by Telegram ID. Used after session resolution
+     * to load character data.
      *
      * @param {number} telegramId - Telegram user ID.
      * @returns {Promise<object>} - { status, user }.

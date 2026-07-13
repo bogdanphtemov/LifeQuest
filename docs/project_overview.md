@@ -131,10 +131,7 @@ Provide a seamless, gamified experience where:
 | 1 | `frontend/index.html` | Entry point, screen markup (3 screens), script loader | — | Loads `api.js` then `dashboard.js` |
 | 2 | `frontend/js/api.js` | **API client** – wraps `fetch()` for all backend calls | `class APIClient`, singleton `const api` | None (standalone) |
 | 3 | `frontend/js/dashboard.js` | **Controller + View** – orchestrates session check, renders screens | `loadCharacterDashboard()`, `showDashboard()`, `showNotRegistered()`, `hideAllScreens()`, `updateLoadingText()` | Depends on `api.js` (`api.telegramSession`) |
-| 4 | `frontend/js/auth.js` | **Backup/unused** – legacy auth functions | `resolveSession()`, `deleteAccount()`, `fetchUserProfile()` | Uses raw `fetch()` (not the `api` singleton) |
-| 5 | `frontend/js/ui.js` | **Backup/unused** – alternative UI logic | `initApp()`, `renderProfile()`, `cacheElements()` | Depends on `auth.js` |
-
-**Important:** Only `api.js` and `dashboard.js` are loaded in production. `auth.js` and `ui.js` exist but are **not** included in `index.html` — they represent an older architecture that was replaced by the simplified `dashboard.js` flow.
+_Note: `auth.js` and `ui.js` exist in the frontend/js/ directory but are legacy/unused and are NOT loaded in production._
 
 ### 6.1 Module Dependency Graph
 
@@ -201,11 +198,11 @@ index.html
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/auth/telegram/register` | Create character from TMA |
-| POST | `/api/auth/register` | Legacy password registration |
-| POST | `/api/auth/login` | Legacy password login |
 | GET | `/api/auth/user/:telegramId` | Fetch user profile by Telegram ID |
 | GET | `/api/health` | Health check |
+
+_Note: The `/api/auth/telegram/register`, `/api/auth/register`, and `/api/auth/login` endpoints were removed_ 
+_during the simplification pass (registration now happens exclusively in the Telegram bot)._
 
 ### 7.2 Frontend Data Flow
 
@@ -261,30 +258,43 @@ From `alembic/versions/ffb10ecdf575_initial_users_table.py`:
 
 ```
 backend/
-  __init__.py           ← Flask app factory (create_app)
-  app.py                ← app entry point, blueprint registration
+  __init__.py           ← Flask app factory
+  app.py                ← app entry point, blueprint registration, DB init
   routes/
     __init__.py         ← blueprint definitions
-    auth_routes.py      ← /api/auth/* routes (session, register, login, user)
+    auth_routes.py      ← /api/auth/* routes (session, account, user)
 
 database/
-  __init__.py           ← SQLAlchemy init, session, engine
+  __init__.py           ← SQLAlchemy init
   users.py              ← User model (SQLAlchemy ORM)
 
-alembic/                ← DB migrations (Alembic)
-  env.py
-  versions/
-    ffb10ecdf575_initial_users_table.py
-
 config.py               ← App configuration (env vars, secrets)
-main.py                 ← WSGI entry point
-handlers/               ← Telegram bot handlers (aiogram/telegram bot logic)
+main.py                 ← Telegram bot entry point (aiogram)
+handlers/               ← Telegram bot handlers
   __init__.py
   profile.py
   start.py
 ```
 
-### 8.2 Key Backend Behaviours
+_Note: alembic/ directory exists but is not critical — the current `app.py` uses
+automatic schema creation (`Base.metadata.create_all`) and additive SQLite migrations
+for local development._
+
+### 8.2 Current Backend Routes
+
+Only three API routes remain active:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/auth/telegram/session` | Verify Telegram initData, check registration status |
+| DELETE | `/api/auth/account` | Delete account (telegram_id + password confirmation) |
+| GET | `/api/auth/user/:telegramId` | Fetch user profile by Telegram ID |
+| GET | `/api/health` | Server health check |
+
+_All password-based registration/login routes were removed when the project
+was simplified to bot-only registration._
+
+### 8.3 Key Backend Behaviours
 
 - **initData validation:** The backend verifies the HMAC-SHA256 signature of `init_data` using the Bot Token as the secret key. If invalid, the request is rejected.
 - **Session resolution:** After validation, the backend looks up `telegram_id` in the `users` table. Returns `registered: true/false` + user data if found.

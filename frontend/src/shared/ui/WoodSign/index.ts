@@ -1,0 +1,1 @@
+export { WoodSign } from './WoodSign';

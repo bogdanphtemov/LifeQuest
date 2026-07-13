@@ -1,97 +1,18 @@
-/* Dark Fantasy Theme — visual effects for the game screen.
+/* Dark Fantasy Theme — visual effects for the future game screen.
 
-   This theme is scoped to .game-screen so it does not interfere with the
-   auth/login screens. All colour values use CSS custom properties defined
-   in this :root block; the ones marked "unused in this file" exist for
-   documentation / future use and can be pruned once a theme system is
-   introduced.
-   NOTE: The original file declared --fantasy-* and --glow-* variables
-   that were never referenced anywhere. They have been removed to keep
-   the codebase clean. If a unified theme palette is needed later,
-   centralise it in main.css. */
+   This theme is scoped to .game-screen which does NOT exist in the current
+   simplified HTML (read-only dashboard). It is kept for future use when the
+   interactive game screen is re-implemented.
+
+   Features:
+   - CRT scanline overlay animation
+   - Glowing title animation
+   - Border glow for panels
+
+   NOTE: All styles in this file are currently unused. They are preserved
+   to document the intended visual direction for the game screen.
+*/
 
 :root {
-    /* Only variables that are actually used in the project */
     --shadow-deep: 0 0 20px rgba(0, 0, 0, 0.9);
-}
-
-/* Dark fantasy background — subtle CRT scanline overlay */
-.game-screen {
-    position: relative;  /* Anchor for the ::before scanlines pseudo-element */
-    background-image: 
-        repeating-linear-gradient(
-            0deg,
-            rgba(0, 0, 0, 0.1) 0px,
-            rgba(0, 0, 0, 0.1) 1px,
-            transparent 1px,
-            transparent 2px
-        );
-}
-
-/* Glowing title animation — only when .game-screen is active */
-.game-screen .game-title {
-    animation: glow 3s ease-in-out infinite;
-}
-
-@keyframes glow {
-    0%, 100% {
-        text-shadow: 
-            2px 2px 4px rgba(0, 0, 0, 0.8),
-            0 0 10px rgba(212, 175, 55, 0.5),
-            0 0 20px rgba(233, 69, 96, 0.3);
-    }
-    50% {
-        text-shadow: 
-            2px 2px 4px rgba(0, 0, 0, 0.8),
-            0 0 20px rgba(212, 175, 55, 0.8),
-            0 0 30px rgba(233, 69, 96, 0.5);
-    }
-}
-
-/* Border glow for game screen panels */
-.game-screen .player-panel,
-.game-screen .game-area,
-.game-screen .actions-panel {
-    box-shadow: 
-        0 0 10px rgba(212, 175, 55, 0.3),
-        0 0 20px rgba(233, 69, 96, 0.2),
-        inset 0 0 10px rgba(212, 175, 55, 0.1);
-}
-
-/* Animated scanline overlay — scoped to .game-screen */
-@media (prefers-reduced-motion: no-preference) {
-    .game-screen::before {
-        content: '';
-        /* Use absolute positioning so scanlines are contained within the
-           .game-screen box and do not leak when another screen is active. */
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        background: 
-            repeating-linear-gradient(
-                0deg,
-                rgba(255, 255, 255, 0.03) 0px,
-                rgba(255, 255, 255, 0.03) 1px,
-                transparent 1px,
-                transparent 2px
-            );
-        /* ~2 px/s — fast enough to be visibly animated without causing
-           flicker or excessive GPU load on mobile devices. */
-        animation: scan 3s linear infinite;
-        /* Keep below modal overlays and notification messages but above
-           the panel background. */
-        z-index: 1;
-    }
-}
-
-@keyframes scan {
-    0% {
-        transform: translateY(0);
-    }
-    100% {
-        transform: translateY(4px);
-    }
 }

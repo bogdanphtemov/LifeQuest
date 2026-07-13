@@ -12,6 +12,7 @@
  *   - Pixel-art rendering forced via image-rendering properties
  */
 
+
 :root {
     --sky-top: #5b3a8c;
     --sky-mid: #c45a28;
@@ -47,6 +48,7 @@
    Start Screen Container
    ═══════════════════════════════════════════════════════════════════════════ */
 .start-screen {
+
     position: relative;
     width: 100%;
     height: 100%;
@@ -941,6 +943,7 @@
 }
 
 /* ── Auth content inside wood sign ── */
+
 .wood-sign .game-title {
     font-family: 'Press Start 2P', monospace;
     font-size: clamp(14px, 3.5vw, 20px);
@@ -966,6 +969,7 @@
    Vignette overlay for depth
    ═══════════════════════════════════════════════════════════════════════════ */
 .start-screen::after {
+
     content: '';
     position: absolute;
     inset: 0;
