@@ -5,6 +5,10 @@
 .env.*.local
 !.env.example
 
+# Agent / AI config (personal workspace)
+.agents/
+.codex/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -50,6 +54,8 @@ venv.bak/
 .project
 .pydevproject
 .settings/
+*.code-workspace
+.vs/
 
 # Database
 *.db
@@ -68,6 +74,29 @@ venv.bak/
 # Logs
 *.log
 logs/
+nohup.out
+
+# OS files
+Thumbs.db
+electron\.Trashes
+
+# Node / frontend build (if used)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.next/
+.cache/
+.parcel-cache/
+
+# Docker
+.dockerignore
+
+# Compiled / build output
+dist/
+build/
+out/
 
 # Testing
 .pytest_cache/
@@ -84,4 +113,13 @@ asset/
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.backup
 .cache/
+
+# Personal notes / scratchpad
+idea.txt
+problems.txt
+
+# Raw game assets (not yet integrated in production code)
+asset/
