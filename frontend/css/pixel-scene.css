@@ -1,4 +1,16 @@
-/* Pixel Art Auth Scene — wheat fields, village, windmill */
+/* Pixel Art Start Screen — three-layer retro RPG village scene
+ *
+ * Architecture:
+ *   Layer 1 (Background): sky, sun, clouds, hills, farm houses with chimney smoke
+ *   Layer 2 (Middle):    windmill with rotating blades, wheat field
+ *   Layer 3 (Foreground): wooden fence, signpost with LifeQuest + Start boards
+ *
+ * Performance notes:
+ *   - All animations use CSS transform/opacity (GPU-composited)
+ *   - Sprites use box-shadow / pseudo-elements (no external images)
+ *   - prefers-reduced-motion respected
+ *   - Pixel-art rendering forced via image-rendering properties
+ */
 
 :root {
     --sky-top: #5b3a8c;
@@ -7,11 +19,12 @@
     --sky-glow: #ffe566;
     --hill-far: #3d2860;
     --hill-near: #2d6b35;
+    --grass-dark: #3a7a28;
+    --grass-mid: #4a9a30;
+    --grass-light: #5aba40;
     --wheat-light: #e8c547;
     --wheat-mid: #c9a030;
     --wheat-dark: #8b6914;
-    --path-color: #c4a060;
-    --path-dark: #8b7040;
     --wood-light: #c8956c;
     --wood-mid: #a06840;
     --wood-dark: #6b4423;
@@ -24,26 +37,60 @@
     --wall-shadow: #a08060;
     --mill-white: #e8e0d0;
     --mill-blade: #6b5030;
+    --mill-roof: #5a3a2a;
+    --fence-wood: #7a5a3a;
+    --fence-dark: #4a3020;
+    --smoke-color: rgba(200, 190, 180, 0.5);
 }
 
-/* ── Scene container ── */
-.auth-screen {
+/* ═══════════════════════════════════════════════════════════════════════════
+   Start Screen Container
+   ═══════════════════════════════════════════════════════════════════════════ */
+.start-screen {
     position: relative;
-    overflow-x: hidden;
-    overflow-y: auto;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
     background: var(--sky-top);
     image-rendering: pixelated;
     image-rendering: crisp-edges;
 }
 
-.pixel-scene {
+/* Independent rendering layers — ready for future parallax */
+.scene-layer {
     position: absolute;
     inset: 0;
-    z-index: 0;
     pointer-events: none;
 }
 
-/* ── Sky layers ── */
+.layer-background {
+    z-index: 1;
+}
+
+.layer-middle {
+    z-index: 2;
+}
+
+.layer-foreground {
+    z-index: 3;
+    pointer-events: auto; /* allow clicking Start button */
+}
+
+.ground-cover {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 6%;
+    z-index: 4;
+    background: linear-gradient(180deg, transparent 0%, var(--grass-dark) 40%, #2a5a1a 100%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 1 — Sky, Sun, Clouds, Hills, Village
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Sky ── */
 .pixel-sky {
     position: absolute;
     inset: 0;
@@ -57,6 +104,7 @@
     );
 }
 
+/* ── Sun ── */
 .pixel-sun {
     position: absolute;
     top: 8%;
@@ -76,7 +124,7 @@
     50% { transform: scale(1.05); opacity: 0.92; }
 }
 
-/* Clouds — pixel blocks */
+/* ── Clouds ── */
 .pixel-cloud {
     position: absolute;
     background: rgba(255, 200, 180, 0.35);
@@ -125,7 +173,6 @@
 .pixel-hill {
     position: absolute;
     bottom: 0;
-    border-radius: 0;
 }
 
 .pixel-hill-far {
@@ -144,102 +191,49 @@
     clip-path: polygon(0 100%, 5% 60%, 15% 75%, 25% 45%, 38% 65%, 50% 35%, 62% 55%, 75% 40%, 88% 65%, 100% 50%, 100% 100%);
 }
 
-/* ── Village (windmill + houses) ── */
-.pixel-village {
+/* ── Village grass field ── */
+.village-grass {
     position: absolute;
-    bottom: 30%;
+    bottom: 25%;
+    left: 0;
+    right: 0;
+    height: 20%;
+    background: linear-gradient(180deg, transparent 0%, var(--grass-mid) 20%, var(--grass-dark) 100%);
+}
+
+/* ── Farm houses ── */
+.village-houses {
+    position: absolute;
+    bottom: 24%;
     left: 0;
     right: 0;
     height: 140px;
 }
 
-/* Windmill */
-.pixel-windmill {
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 80px;
-    height: 120px;
-}
-
-.windmill-tower {
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 36px;
-    height: 80px;
-    background: var(--mill-white);
-    border-left: 4px solid var(--wall-shadow);
-    border-right: 4px solid #fff;
-    box-shadow: inset -4px 0 0 rgba(0,0,0,0.08);
-}
-
-.windmill-tower::before {
-    content: '';
-    position: absolute;
-    top: 20px;
-    left: 6px;
-    width: 8px;
-    height: 8px;
-    background: #555;
-    box-shadow: 0 16px 0 #555, 0 32px 0 #555;
-}
-
-.windmill-blades {
-    position: absolute;
-    top: -8px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 4px;
-    height: 4px;
-    background: #444;
-    animation: blades-spin 8s linear infinite;
-}
-
-.windmill-blades::before,
-.windmill-blades::after {
-    content: '';
-    position: absolute;
-    background: var(--mill-blade);
-}
-
-.windmill-blades::before {
-    width: 4px;
-    height: 48px;
-    top: -48px;
-    left: 0;
-    box-shadow:
-        0 52px 0 var(--mill-blade),
-        -22px 24px 0 0 var(--mill-blade),
-        22px 24px 0 0 var(--mill-blade);
-}
-
-@keyframes blades-spin {
-    from { transform: translateX(-50%) rotate(0deg); }
-    to { transform: translateX(-50%) rotate(360deg); }
-}
-
-/* Houses */
-.pixel-house {
+.farm-house {
     position: absolute;
     bottom: 0;
 }
 
-.pixel-house-left {
-    left: 12%;
+.farm-house-left {
+    left: 8%;
+    width: 64px;
+    height: 60px;
+}
+
+.farm-house-center {
+    left: 38%;
     width: 56px;
-    height: 56px;
+    height: 52px;
 }
 
-.pixel-house-right {
-    right: 10%;
-    width: 48px;
-    height: 48px;
+.farm-house-right {
+    right: 6%;
+    width: 68px;
+    height: 64px;
 }
 
-.house-body {
+.farm-house-body {
     position: absolute;
     bottom: 0;
     width: 100%;
@@ -249,7 +243,7 @@
     border-bottom: 3px solid var(--wall-shadow);
 }
 
-.house-roof {
+.farm-house-roof {
     position: absolute;
     top: 0;
     left: -4px;
@@ -260,9 +254,9 @@
     border-bottom: 3px solid var(--roof-dark);
 }
 
-.house-window {
+.farm-house-window {
     position: absolute;
-    bottom: 30%;
+    bottom: 35%;
     left: 50%;
     transform: translateX(-50%);
     width: 10px;
@@ -272,29 +266,245 @@
     animation: window-glow 3s ease-in-out infinite;
 }
 
+.farm-house-window::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 4px;
+    width: 2px;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.15);
+}
+
 @keyframes window-glow {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
 }
 
-.house-door {
+.farm-house-door {
     position: absolute;
     bottom: 0;
     left: 50%;
     transform: translateX(-50%);
     width: 12px;
-    height: 18px;
+    height: 16px;
     background: var(--wood-dark);
 }
 
+/* ── Chimney ── */
+.chimney {
+    position: absolute;
+    top: -18px;
+    width: 12px;
+    height: 16px;
+    background: #8b5050;
+    border-right: 2px solid #6b3030;
+    z-index: 1;
+}
+
+.chimney-1 {
+    left: 12px;
+    height: 18px;
+}
+
+.chimney-2 {
+    right: 8px;
+    height: 14px;
+}
+
+.chimney-3 {
+    left: 16px;
+    height: 20px;
+}
+
+/* ── Chimney smoke ── */
+.smoke {
+    position: absolute;
+    top: -32px;
+    left: 6px;
+    width: 16px;
+    height: 30px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.smoke-1 { top: -34px; }
+.smoke-2 { top: -28px; }
+.smoke-3 { top: -36px; }
+
+.smoke-puff {
+    position: absolute;
+    bottom: 0;
+    width: 8px;
+    height: 8px;
+    background: var(--smoke-color);
+    border-radius: 50%;
+    opacity: 0;
+    animation: smoke-rise 3s ease-out infinite;
+}
+
+.puff-1 {
+    left: 0;
+    animation-delay: 0s;
+}
+
+.puff-2 {
+    left: 4px;
+    animation-delay: 1s;
+}
+
+.puff-3 {
+    left: -2px;
+    animation-delay: 2s;
+}
+
+/* Different smoke offsets per chimney */
+.smoke-2 .puff-1 { animation-delay: 0.5s; }
+.smoke-2 .puff-2 { animation-delay: 1.5s; }
+.smoke-2 .puff-3 { animation-delay: 2.5s; }
+
+.smoke-3 .puff-1 { animation-delay: 0.3s; }
+.smoke-3 .puff-2 { animation-delay: 1.3s; }
+.smoke-3 .puff-3 { animation-delay: 2.3s; }
+
+@keyframes smoke-rise {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 0.6;
+    }
+    50% {
+        transform: translateY(-12px) scale(1.4);
+        opacity: 0.3;
+    }
+    100% {
+        transform: translateY(-24px) scale(1.8);
+        opacity: 0;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 2 — Windmill + Wheat Field
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Windmill ── */
+.pixel-windmill {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 140px;
+}
+
+.windmill-base {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 12px;
+    background: var(--fence-wood);
+    border-bottom: 4px solid var(--fence-dark);
+}
+
+.windmill-tower {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 32px;
+    height: 80px;
+    background: var(--mill-white);
+    border-left: 3px solid var(--wall-shadow);
+    border-right: 3px solid #fff;
+    box-shadow: inset -3px 0 0 rgba(0, 0, 0, 0.08);
+}
+
+.windmill-tower::before {
+    content: '';
+    position: absolute;
+    top: 18px;
+    left: 8px;
+    width: 6px;
+    height: 6px;
+    background: #555;
+    box-shadow: 0 14px 0 #555, 0 28px 0 #555, 0 42px 0 #555;
+}
+
+.windmill-roof {
+    position: absolute;
+    bottom: 84px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 12px;
+    background: var(--mill-roof);
+    clip-path: polygon(10% 100%, 50% 0%, 90% 100%);
+}
+
+/* ── Windmill blades ── */
+.windmill-blades {
+    position: absolute;
+    top: 84px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 6px;
+    animation: blades-spin 12s linear infinite;
+    transform-origin: center center;
+}
+
+.blade {
+    position: absolute;
+    top: -32px;
+    left: -1px;
+    width: 4px;
+    height: 36px;
+    background: var(--mill-blade);
+    border-radius: 2px 2px 0 0;
+    transform-origin: bottom center;
+}
+
+.blade-1 { transform: rotate(0deg); }
+.blade-2 { transform: rotate(90deg); }
+.blade-3 { transform: rotate(180deg); }
+.blade-4 { transform: rotate(270deg); }
+
+.blade::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -8px;
+    width: 20px;
+    height: 4px;
+    background: var(--mill-blade);
+    border-radius: 1px;
+}
+
+.blade-hub {
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    width: 8px;
+    height: 8px;
+    background: #444;
+    border-radius: 50%;
+    z-index: 1;
+}
+
+@keyframes blades-spin {
+    from { transform: translateX(-50%) rotate(0deg); }
+    to { transform: translateX(-50%) rotate(360deg); }
+}
+
 /* ── Wheat field ── */
-.pixel-wheat-field {
+.wheat-field {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
     height: 32%;
-    background: linear-gradient(180deg, #4a8a30 0%, var(--hill-near) 15%, var(--wheat-dark) 100%);
+    background: linear-gradient(180deg, var(--grass-mid) 0%, #3a7a28 15%, var(--wheat-dark) 100%);
     overflow: hidden;
 }
 
@@ -307,13 +517,13 @@
         repeating-linear-gradient(
             90deg,
             transparent 0px,
-            transparent 6px,
+            transparent 5px,
+            var(--wheat-mid) 5px,
             var(--wheat-mid) 6px,
-            var(--wheat-mid) 7px,
-            transparent 7px,
-            transparent 14px
+            transparent 6px,
+            transparent 12px
         );
-    opacity: 0.4;
+    opacity: 0.35;
 }
 
 .wheat-stalks {
@@ -326,7 +536,7 @@
 
 .wheat-stalks-2 {
     background-position: 8px 4px;
-    opacity: 0.85;
+    opacity: 0.8;
     animation: wheat-sway 5s ease-in-out infinite reverse;
     animation-delay: -1s;
 }
@@ -336,168 +546,278 @@
     50% { transform: skewX(1.5deg); }
 }
 
-/* ── Dirt path ── */
-.pixel-path {
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 3 — Fence + Signpost
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Wooden fence ── */
+.wooden-fence {
     position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 80px;
-    height: 35%;
-    background: linear-gradient(180deg, transparent 0%, var(--path-color) 20%, var(--path-dark) 100%);
-    clip-path: polygon(35% 0%, 65% 0%, 80% 100%, 20% 100%);
-    opacity: 0.85;
+    bottom: 12%;
+    left: 0;
+    right: 0;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 4%;
 }
 
-.pixel-path::before {
+.fence-post {
+    width: 10px;
+    height: 46px;
+    background: linear-gradient(90deg, var(--fence-dark) 0%, var(--fence-wood) 30%, var(--fence-wood) 70%, var(--fence-dark) 100%);
+    border-radius: 1px;
+    position: relative;
+    z-index: 2;
+    flex-shrink: 0;
+}
+
+.fence-post::before {
     content: '';
     position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(
-        0deg,
-        transparent 0px,
-        transparent 8px,
-        rgba(0,0,0,0.06) 8px,
-        rgba(0,0,0,0.06) 9px
-    );
+    top: 4px;
+    left: 2px;
+    width: 6px;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 50%;
 }
 
-/* Path side details — trampled wheat edges */
-.path-edge {
+.fence-post::after {
+    content: '';
     position: absolute;
-    bottom: 5%;
-    width: 30px;
-    height: 20%;
-    opacity: 0.6;
+    bottom: 4px;
+    left: 2px;
+    width: 6px;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 50%;
 }
 
-.path-edge-left {
-    left: calc(50% - 70px);
-    background: linear-gradient(135deg, var(--wheat-mid), transparent);
-}
-
-.path-edge-right {
-    right: calc(50% - 70px);
-    background: linear-gradient(225deg, var(--wheat-mid), transparent);
-}
-
-/* ── Walking people ── */
-.pixel-walkers {
+.fence-rail {
     position: absolute;
-    inset: 0;
+    height: 6px;
+    background: linear-gradient(180deg, var(--wood-light) 0%, var(--wood-mid) 50%, var(--fence-wood) 100%);
+    border-radius: 1px;
+    left: 4%;
+    right: 4%;
     z-index: 1;
 }
 
-.pixel-walker {
+.fence-rail-top {
+    top: 8px;
+}
+
+.fence-rail-bottom {
+    bottom: 8px;
+}
+
+/* ── Signpost ── */
+.signpost {
     position: absolute;
-    width: 8px;
-    height: 12px;
-    image-rendering: pixelated;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-}
-
-/* Pixel person sprites via box-shadow */
-.walker-1 {
     bottom: 14%;
-    left: -5%;
-    animation: walk-right 18s linear infinite;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 5;
+}
+
+.signpost-pole {
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 100px;
+    background: linear-gradient(90deg, var(--fence-dark) 0%, var(--fence-wood) 20%, var(--fence-wood) 80%, var(--fence-dark) 100%);
+    z-index: 0;
+    border-radius: 1px;
+}
+
+/* ── Upper board (LifeQuest, fixed) ── */
+.signboard-top {
+    position: relative;
+    z-index: 2;
+    margin-bottom: 2px;
+}
+
+.signboard {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent 0px,
+            transparent 3px,
+            rgba(0, 0, 0, 0.04) 3px,
+            rgba(0, 0, 0, 0.04) 4px
+        ),
+        linear-gradient(180deg, var(--wood-light) 0%, var(--wood-mid) 50%, var(--wood-dark) 100%);
+    border: 4px solid var(--wood-edge);
+    border-radius: 2px;
     box-shadow:
-        /* head */
-        2px 0 0 0 #3a2a1a,
-        3px 0 0 0 #3a2a1a,
-        4px 0 0 0 #3a2a1a,
-        /* body */
-        2px 2px 0 0 #4a6a9a,
-        3px 2px 0 0 #4a6a9a,
-        4px 2px 0 0 #4a6a9a,
-        2px 3px 0 0 #4a6a9a,
-        3px 3px 0 0 #4a6a9a,
-        4px 3px 0 0 #4a6a9a,
-        /* legs */
-        2px 4px 0 0 #2a2a3a,
-        4px 4px 0 0 #2a2a3a,
-        2px 5px 0 0 #2a2a3a,
-        4px 5px 0 0 #2a2a3a;
+        inset 0 2px 0 rgba(255, 255, 255, 0.12),
+        inset 0 -3px 0 rgba(0, 0, 0, 0.18),
+        0 6px 0 var(--wood-edge),
+        0 8px 16px rgba(0, 0, 0, 0.4);
+    image-rendering: pixelated;
 }
 
-.walker-2 {
-    bottom: 16%;
-    left: -5%;
-    animation: walk-right 24s linear infinite;
-    animation-delay: -8s;
-    box-shadow:
-        2px 0 0 0 #5a3a2a,
-        3px 0 0 0 #5a3a2a,
-        4px 0 0 0 #5a3a2a,
-        2px 2px 0 0 #8a5040,
-        3px 2px 0 0 #8a5040,
-        4px 2px 0 0 #8a5040,
-        2px 3px 0 0 #8a5040,
-        3px 3px 0 0 #8a5040,
-        4px 3px 0 0 #8a5040,
-        2px 4px 0 0 #3a2a2a,
-        4px 4px 0 0 #3a2a2a,
-        2px 5px 0 0 #3a2a2a,
-        4px 5px 0 0 #3a2a2a;
+.signboard-wood-texture {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        repeating-linear-gradient(
+            90deg,
+            transparent 0px,
+            transparent 50px,
+            rgba(0, 0, 0, 0.05) 50px,
+            rgba(0, 0, 0, 0.05) 52px
+        );
+    border-radius: inherit;
 }
 
-.walker-3 {
-    bottom: 12%;
-    right: -5%;
-    animation: walk-left 22s linear infinite;
-    animation-delay: -4s;
-    box-shadow:
-        2px 0 0 0 #2a4a2a,
-        3px 0 0 0 #2a4a2a,
-        4px 0 0 0 #2a4a2a,
-        2px 2px 0 0 #6a8a50,
-        3px 2px 0 0 #6a8a50,
-        4px 2px 0 0 #6a8a50,
-        2px 3px 0 0 #6a8a50,
-        3px 3px 0 0 #6a8a50,
-        4px 3px 0 0 #6a8a50,
-        2px 4px 0 0 #2a2a2a,
-        4px 4px 0 0 #2a2a2a,
-        2px 5px 0 0 #2a2a2a,
-        4px 5px 0 0 #2a2a2a;
+.signboard-title {
+    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+    font-size: clamp(18px, 4.5vw, 28px);
+    color: var(--wood-edge);
+    text-shadow:
+        2px 2px 0 rgba(0, 0, 0, 0.15);
+    letter-spacing: 3px;
+    padding: 16px 32px;
+    margin: 0;
+    text-align: center;
 }
 
-@keyframes walk-right {
-    0% { left: -3%; opacity: 0; }
-    5% { opacity: 1; }
-    95% { opacity: 1; }
-    100% { left: 103%; opacity: 0; }
+/* ── Upper board: nail details ── */
+.signboard-top::before,
+.signboard-top::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    width: 7px;
+    height: 7px;
+    background: radial-gradient(circle, #999 30%, #666 70%);
+    border-radius: 50%;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    z-index: 1;
 }
 
-@keyframes walk-left {
-    0% { right: -3%; opacity: 0; }
-    5% { opacity: 1; }
-    95% { opacity: 1; }
-    100% { right: 103%; opacity: 0; }
+.signboard-top::before { left: 12px; }
+.signboard-top::after { right: 12px; }
+
+/* ── Chains between upper and lower boards ── */
+.start-chains {
+    display: flex;
+    justify-content: space-between;
+    width: min(200px, 50vw);
+    height: 40px;
+    padding: 0 16px;
+    position: relative;
+    z-index: 1;
 }
 
-/* Leg walk bob — each walker has its own path animation */
-.walker-1 {
-    animation: walk-right 18s linear infinite, walker-bob 0.4s ease-in-out infinite;
+.start-chain {
+    width: 8px;
+    height: 100%;
+    background: repeating-linear-gradient(
+        180deg,
+        var(--chain-metal) 0px,
+        var(--chain-metal) 5px,
+        var(--chain-shadow) 5px,
+        var(--chain-shadow) 7px,
+        #aaa 7px,
+        #aaa 12px,
+        var(--chain-shadow) 12px,
+        var(--chain-shadow) 14px
+    );
+    border-left: 1px solid #bbb;
+    border-right: 1px solid var(--chain-shadow);
+    image-rendering: pixelated;
 }
 
-.walker-2 {
-    animation: walk-right 24s linear infinite, walker-bob 0.45s ease-in-out infinite;
-    animation-delay: -8s, 0s;
+.start-chain-left {
+    transform: rotate(-4deg);
+    transform-origin: top center;
 }
 
-.walker-3 {
-    animation: walk-left 22s linear infinite, walker-bob 0.42s ease-in-out infinite;
-    animation-delay: -4s, 0s;
+.start-chain-right {
+    transform: rotate(4deg);
+    transform-origin: top center;
 }
 
-@keyframes walker-bob {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-2px); }
+/* ── Lower hanging board (Start, swinging) ── */
+.signboard-bottom {
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
+    transform-origin: top center;
+    animation: start-sign-swing 4s ease-in-out infinite;
+    transition: transform 0.15s, box-shadow 0.15s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
-/* ── Hanging wood sign ── */
+.signboard-bottom:hover {
+    transform-origin: top center;
+    animation-play-state: paused;
+}
+
+.signboard-bottom:active {
+    transform: scale(0.97);
+}
+
+.signboard-bottom:focus-visible {
+    outline: 3px solid var(--wheat-light);
+    outline-offset: 4px;
+}
+
+@keyframes start-sign-swing {
+    0%, 100% { transform: rotate(-1.2deg); }
+    50% { transform: rotate(1.2deg); }
+}
+
+.start-sign-swing-paused {
+    animation-play-state: paused !important;
+}
+
+.signboard-start-text {
+    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+    font-size: clamp(14px, 3.5vw, 20px);
+    color: var(--wood-edge);
+    text-shadow:
+        2px 2px 0 rgba(0, 0, 0, 0.15);
+    letter-spacing: 4px;
+    padding: 12px 40px;
+    text-align: center;
+}
+
+/* ── Lower board: nail details ── */
+.signboard-bottom::before,
+.signboard-bottom::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    width: 7px;
+    height: 7px;
+    background: radial-gradient(circle, #999 30%, #666 70%);
+    border-radius: 50%;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    z-index: 1;
+}
+
+.signboard-bottom::before { left: 12px; }
+.signboard-bottom::after { right: 12px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Hanging Wood Sign (shared by Dashboard & Error screens)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .sign-hanger {
     position: relative;
     z-index: 10;
@@ -621,12 +941,6 @@
 }
 
 /* ── Auth content inside wood sign ── */
-.wood-sign .auth-header {
-    border-bottom: 3px dashed var(--wood-edge);
-    padding-bottom: 16px;
-    margin-bottom: 20px;
-}
-
 .wood-sign .game-title {
     font-family: 'Press Start 2P', monospace;
     font-size: clamp(14px, 3.5vw, 20px);
@@ -648,145 +962,15 @@
     line-height: 1.8;
 }
 
-.wood-sign .form-title {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(9px, 2.2vw, 12px);
-    color: var(--wood-edge);
-    line-height: 1.8;
-    margin-bottom: 18px;
-}
-
-.wood-sign .form-label {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(7px, 1.8vw, 9px);
-    color: var(--wood-edge);
-    line-height: 1.6;
-    margin-bottom: 8px;
-}
-
-.wood-sign .form-input {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(8px, 2vw, 10px);
-    padding: 12px 10px;
-    background: rgba(255, 248, 230, 0.85);
-    color: var(--wood-edge);
-    border: 3px solid var(--wood-dark);
-    border-radius: 0;
-    box-shadow:
-        inset 2px 2px 0 rgba(0,0,0,0.08),
-        0 3px 0 var(--wood-edge);
-    line-height: 1.6;
-}
-
-.wood-sign .form-input:focus {
-    outline: none;
-    border-color: var(--wheat-mid);
-    background: #fff8e8;
-    box-shadow:
-        inset 2px 2px 0 rgba(0,0,0,0.06),
-        0 0 0 2px var(--wheat-light),
-        0 3px 0 var(--wood-edge);
-}
-
-.wood-sign .form-input::placeholder {
-    color: rgba(107, 68, 35, 0.45);
-    font-size: clamp(7px, 1.6vw, 8px);
-}
-
-.wood-sign .form-hint {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(6px, 1.5vw, 7px);
-    color: rgba(107, 68, 35, 0.7);
-    margin-top: 6px;
-    line-height: 1.6;
-}
-
-.wood-sign .welcome-message {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(7px, 1.8vw, 9px);
-    color: #5a3820;
-    line-height: 1.8;
-    text-align: center;
-    margin-bottom: 16px;
-}
-
-.wood-sign .btn {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(8px, 2vw, 10px);
-    padding: 14px 12px;
-    border-radius: 0;
-    border: 3px solid var(--wood-edge);
-    line-height: 1.6;
-    transition: transform 0.1s, box-shadow 0.1s;
-}
-
-.wood-sign .btn-primary {
-    color: #fff;
-    background: linear-gradient(180deg, #6a9a40 0%, #4a7a28 100%);
-    box-shadow: 0 4px 0 #2a5018, 0 6px 12px rgba(0,0,0,0.3);
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.3);
-}
-
-.wood-sign .btn-primary:hover {
-    background: linear-gradient(180deg, #7aaa50 0%, #5a8a38 100%);
-    box-shadow: 0 4px 0 #2a5018, 0 8px 16px rgba(0,0,0,0.35);
-}
-
-.wood-sign .btn-success {
-    color: #fff;
-    background: linear-gradient(180deg, #c89030 0%, #a07020 100%);
-    box-shadow: 0 4px 0 #604010, 0 6px 12px rgba(0,0,0,0.3);
-    text-shadow: 1px 1px 0 rgba(0,0,0,0.3);
-}
-
-.wood-sign .btn-success:hover {
-    background: linear-gradient(180deg, #d8a040 0%, #b08030 100%);
-    box-shadow: 0 4px 0 #604010, 0 8px 16px rgba(0,0,0,0.35);
-}
-
-.wood-sign .btn-secondary {
-    color: var(--wood-edge);
-    background: rgba(255, 248, 230, 0.6);
-    box-shadow: 0 3px 0 var(--wood-dark);
-}
-
-.wood-sign .btn-secondary:hover {
-    background: rgba(255, 248, 230, 0.9);
-    box-shadow: 0 3px 0 var(--wood-dark), 0 5px 10px rgba(0,0,0,0.2);
-}
-
-.wood-sign .btn:active {
-    transform: translateY(3px);
-    box-shadow: 0 1px 0 var(--wood-edge) !important;
-}
-
-.wood-sign .error-message {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(6px, 1.5vw, 8px);
-    line-height: 1.6;
-    border-radius: 0;
-    border: 2px solid #8b2020;
-    background: rgba(139, 32, 32, 0.15);
-    color: #8b2020;
-}
-
-.wood-sign .success-message {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(6px, 1.5vw, 8px);
-    line-height: 1.6;
-    border-radius: 0;
-    border: 2px solid #3a7a28;
-    background: rgba(58, 122, 40, 0.15);
-    color: #3a7a28;
-}
-
-/* Vignette overlay for depth */
-.auth-screen::after {
+/* ═══════════════════════════════════════════════════════════════════════════
+   Vignette overlay for depth
+   ═══════════════════════════════════════════════════════════════════════════ */
+.start-screen::after {
     content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
-    z-index: 5;
+    z-index: 10;
     background: radial-gradient(
         ellipse at center 40%,
         transparent 40%,
@@ -794,23 +978,86 @@
     );
 }
 
-/* Responsive */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Screen active state
+   ═══════════════════════════════════════════════════════════════════════════ */
+.start-screen.active {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Responsive
+   ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
-    .pixel-windmill { transform: translateX(-50%) scale(0.75); }
-    .pixel-house-left { left: 5%; transform: scale(0.85); }
-    .pixel-house-right { right: 3%; transform: scale(0.8); }
-    .wood-sign { padding: 20px 16px 18px; }
-    .sign-chains { height: 40px; }
+    .pixel-windmill {
+        transform: translateX(-50%) scale(0.7);
+        transform-origin: bottom center;
+    }
+    .farm-house-left {
+        left: 4%;
+        transform: scale(0.8);
+        transform-origin: bottom left;
+    }
+    .farm-house-center {
+        left: 35%;
+        transform: scale(0.75);
+        transform-origin: bottom center;
+    }
+    .farm-house-right {
+        right: 2%;
+        transform: scale(0.8);
+        transform-origin: bottom right;
+    }
+    .signboard-title {
+        padding: 12px 20px;
+    }
+    .signboard-start-text {
+        padding: 10px 24px;
+    }
+    .start-chains {
+        height: 30px;
+        width: min(150px, 45vw);
+        padding: 0 12px;
+    }
+    .wooden-fence {
+        bottom: 10%;
+        height: 36px;
+        padding: 0 2%;
+    }
+    .fence-post {
+        width: 8px;
+        height: 36px;
+    }
+    .fence-rail {
+        height: 5px;
+    }
+    .fence-rail-top {
+        top: 5px;
+    }
+    .fence-rail-bottom {
+        bottom: 5px;
+    }
+    .signpost-pole {
+        width: 10px;
+        height: 70px;
+        bottom: -20px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .pixel-windmill .windmill-blades,
-    .pixel-walker,
-    .sign-hanger,
-    .wheat-stalks,
     .pixel-sun,
     .pixel-cloud-1,
-    .pixel-cloud-2 {
+    .pixel-cloud-2,
+    .windmill-blades,
+    .wheat-stalks,
+    .signboard-bottom,
+    .smoke-puff,
+    .farm-house-window {
         animation: none !important;
+    }
+    .smoke-puff {
+        opacity: 0.3;
     }
 }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LifeQuest - RPG Dashboard</title>
+    <title>LifeQuest - RPG Adventure</title>
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/pixel-fonts.css">
     <link rel="stylesheet" href="css/pixel-scene.css">
@@ -13,10 +13,10 @@
     <div class="container">
         <div id="app" class="app">
 
-            <!-- ============ SCREEN 1: Loading ============ -->
-            <div id="loading-screen" class="screen loading-screen active">
-                <!-- Pixel art landscape background -->
-                <div class="pixel-scene" aria-hidden="true">
+            <!-- ============ SCREEN 1: Start Screen ============ -->
+            <div id="start-screen" class="screen start-screen active">
+                <!-- ==================== LAYER 1 — Background ==================== -->
+                <div class="scene-layer layer-background" aria-hidden="true">
                     <div class="pixel-sky"></div>
                     <div class="pixel-sun"></div>
                     <div class="pixel-cloud pixel-cloud-1"></div>
@@ -25,53 +25,110 @@
                         <div class="pixel-hill pixel-hill-far"></div>
                         <div class="pixel-hill pixel-hill-near"></div>
                     </div>
-                    <div class="pixel-village">
-                        <div class="pixel-house pixel-house-left">
-                            <div class="house-roof"></div>
-                            <div class="house-body">
-                                <div class="house-window"></div>
-                                <div class="house-door"></div>
+                    <div class="village-grass"></div>
+                    <div class="village-houses">
+                        <!-- House 1 (left) -->
+                        <div class="farm-house farm-house-left">
+                            <div class="farm-house-roof"></div>
+                            <div class="farm-house-body">
+                                <div class="farm-house-window"></div>
+                                <div class="farm-house-door"></div>
+                                <div class="chimney chimney-1"></div>
+                                <div class="smoke smoke-1">
+                                    <div class="smoke-puff puff-1"></div>
+                                    <div class="smoke-puff puff-2"></div>
+                                    <div class="smoke-puff puff-3"></div>
+                                </div>
                             </div>
                         </div>
-                        <div class="pixel-windmill">
-                            <div class="windmill-blades"></div>
-                            <div class="windmill-tower"></div>
-                        </div>
-                        <div class="pixel-house pixel-house-right">
-                            <div class="house-roof"></div>
-                            <div class="house-body">
-                                <div class="house-window"></div>
-                                <div class="house-door"></div>
+                        <!-- House 2 (center) -->
+                        <div class="farm-house farm-house-center">
+                            <div class="farm-house-roof"></div>
+                            <div class="farm-house-body">
+                                <div class="farm-house-window"></div>
+                                <div class="farm-house-door"></div>
+                                <div class="chimney chimney-2"></div>
+                                <div class="smoke smoke-2">
+                                    <div class="smoke-puff puff-1"></div>
+                                    <div class="smoke-puff puff-2"></div>
+                                    <div class="smoke-puff puff-3"></div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="pixel-wheat-field">
-                        <div class="wheat-row"></div>
-                        <div class="wheat-stalks"></div>
-                        <div class="wheat-stalks wheat-stalks-2"></div>
-                        <div class="path-edge path-edge-left"></div>
-                        <div class="path-edge path-edge-right"></div>
-                    </div>
-                    <div class="pixel-path"></div>
-                    <div class="pixel-walkers">
-                        <div class="pixel-walker walker-1"></div>
-                        <div class="pixel-walker walker-2"></div>
-                        <div class="pixel-walker walker-3"></div>
+                        <!-- House 3 (right) -->
+                        <div class="farm-house farm-house-right">
+                            <div class="farm-house-roof"></div>
+                            <div class="farm-house-body">
+                                <div class="farm-house-window"></div>
+                                <div class="farm-house-door"></div>
+                                <div class="chimney chimney-3"></div>
+                                <div class="smoke smoke-3">
+                                    <div class="smoke-puff puff-1"></div>
+                                    <div class="smoke-puff puff-2"></div>
+                                    <div class="smoke-puff puff-3"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="sign-hanger">
-                    <div class="sign-hook"></div>
-                    <div class="sign-chains">
-                        <div class="sign-chain sign-chain-left"></div>
-                        <div class="sign-chain sign-chain-right"></div>
+                <!-- ==================== LAYER 2 — Middle ==================== -->
+                <div class="scene-layer layer-middle" aria-hidden="true">
+                    <div class="pixel-windmill">
+                        <div class="windmill-base"></div>
+                        <div class="windmill-tower"></div>
+                        <div class="windmill-roof"></div>
+                        <div class="windmill-blades" id="windmill-blades">
+                            <div class="blade blade-1"></div>
+                            <div class="blade blade-2"></div>
+                            <div class="blade blade-3"></div>
+                            <div class="blade blade-4"></div>
+                            <div class="blade-hub"></div>
+                        </div>
                     </div>
-                    <div class="wood-sign loading-container">
-                        <div class="wood-sign-plank-lines"></div>
-                        <h1 class="game-title">LIFE QUEST</h1>
-                        <p class="loading-text" id="loading-text">Connecting to the realm...</p>
+                    <div class="wheat-field">
+                        <div class="wheat-row"></div>
+                        <div class="wheat-stalks"></div>
+                        <div class="wheat-stalks wheat-stalks-2"></div>
                     </div>
                 </div>
+
+                <!-- ==================== LAYER 3 — Foreground ==================== -->
+                <div class="scene-layer layer-foreground" aria-hidden="true">
+                    <!-- Wooden fence -->
+                    <div class="wooden-fence">
+                        <div class="fence-post fence-post-1"></div>
+                        <div class="fence-rail fence-rail-top"></div>
+                        <div class="fence-rail fence-rail-bottom"></div>
+                        <div class="fence-post fence-post-2"></div>
+                        <div class="fence-post fence-post-3"></div>
+                        <div class="fence-post fence-post-4"></div>
+                        <div class="fence-post fence-post-5"></div>
+                    </div>
+
+                    <!-- Wooden signpost with two boards -->
+                    <div class="signpost">
+                        <div class="signpost-pole"></div>
+                        <!-- Upper board: LifeQuest (fixed) -->
+                        <div class="signboard signboard-top">
+                            <div class="signboard-wood-texture"></div>
+                            <h1 class="signboard-title">LifeQuest</h1>
+                        </div>
+                        <!-- Chains hanging from upper board -->
+                        <div class="start-chains">
+                            <div class="start-chain start-chain-left"></div>
+                            <div class="start-chain start-chain-right"></div>
+                        </div>
+                        <!-- Lower hanging board: Start (swinging, clickable) -->
+                        <div class="signboard signboard-bottom" id="start-button" role="button" tabindex="0" aria-label="Start Game">
+                            <div class="signboard-wood-texture"></div>
+                            <span class="signboard-start-text">Start</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ground cover (bottom edge) -->
+                <div class="ground-cover"></div>
             </div>
 
             <!-- ============ SCREEN 2: Character Dashboard ============ -->
