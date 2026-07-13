@@ -1,5 +1,5 @@
 
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
@@ -22,6 +22,9 @@ class User(Base):
     level = Column(Integer, default=1)
     experience = Column(Integer, default=0)
     coins = Column(Integer, default=0)
+    # Character appearance / texture fields
+    texture_path = Column(String(512), nullable=True)
+    sprite_data = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

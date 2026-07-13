@@ -232,6 +232,8 @@ def serialize_user(user):
         'level': user.level,
         'experience': user.experience,
         'coins': user.coins,
+        'texture_path': user.texture_path,
+        'sprite_data': user.sprite_data,
         'created_at': user.created_at.isoformat() if user.created_at else None,
     }
 
@@ -425,6 +427,156 @@ def delete_account():
             'status': 'error',
             'message': f'Account deletion failed: {str(e)}'
         }), 500
+
+
+# ===========================================================================
+# Route: Character creation from WebApp
+# ===========================================================================
+
+
+@bp.route('/telegram/register', methods=['POST'])
+def register_character():
+    """
+    Create a new character from the WebApp character creation menu.
+
+    This is the primary registration flow — the user fills in character details
+    (name, class, appearance) in the WebApp UI instead of in the Telegram bot.
+
+    Expected request body:
+    {
+      "init_data": "...",       (Telegram Mini App initData, required)
+      "display_name": "...",     (character name, defaults to Telegram first_name)
+      "character_class": "...",  (adventurer / warrior / mage / archer, etc.)
+      "texture_path": "...",     (optional, path to texture file)
+      "sprite_data": "..."       (optional, JSON string of customization options)
+    }
+
+    Responses:
+    - 201 with user data on success
+    - 409 if user already has a character
+    - 400 on validation errors
+    - 401 on invalid initData
+    """
+    from database.users import User
+
+    data = request.get_json() or {}
+
+    # ── 1. Verify Telegram session ──
+    try:
+        telegram_user = verify_telegram_init_data(data.get('init_data', ''))
+    except (ValueError, json.JSONDecodeError) as error:
+        return jsonify({
+            'status': 'error',
+            'message': str(error)
+        }), 401
+
+    telegram_id = telegram_user.get('id')
+    if not telegram_id:
+        return jsonify({
+            'status': 'error',
+            'message': 'Telegram user id is missing'
+        }), 401
+
+    # ── 2. Apply rate limiting ──
+    now = time.time()
+    _register_attempts[telegram_id] = [
+        t for t in _register_attempts.get(telegram_id, [])
+        if now - t < REGISTER_WINDOW_SECONDS
+    ]
+    if len(_register_attempts.get(telegram_id, [])) >= MAX_REGISTER_ATTEMPTS:
+        return jsonify({
+            'status': 'error',
+            'message': 'Too many registration attempts. Please try again later.'
+        }), 429
+    _register_attempts.setdefault(telegram_id, []).append(now)
+
+    # ── 3. Parse character data ──
+    display_name = (data.get('display_name') or '').strip()
+    if not display_name:
+        display_name = telegram_user.get('first_name', 'Adventurer')
+
+    character_class = (data.get('character_class') or '').strip().lower()
+    VALID_CLASSES = {'adventurer', 'warrior', 'mage', 'archer', 'rogue'}
+    if character_class and character_class not in VALID_CLASSES:
+        return jsonify({
+            'status': 'error',
+            'message': f'Invalid class. Choose from: {', '.join(sorted(VALID_CLASSES))}'
+        }), 400
+    if not character_class:
+        character_class = 'adventurer'
+
+    texture_path = (data.get('texture_path') or '').strip() or None
+    sprite_data = data.get('sprite_data')  # JSON string or None
+
+    # ── 4. Check for existing character ──
+    try:
+        with get_session_factory()() as session:
+            existing = session.execute(
+                select(User).where(User.telegram_id == telegram_id)
+            ).scalar_one_or_none()
+
+            if existing:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'You already have a character!',
+                    'user': serialize_user(existing),
+                }), 409
+
+            # Generate a unique username from Telegram info
+            base_username = normalize_username(
+                telegram_user.get('username') or f'user_{telegram_id}'
+            )
+            username = base_username
+
+            # Ensure username is unique
+            counter = 1
+            while True:
+                existing_username = session.execute(
+                    select(User).where(User.username == username)
+                ).scalar_one_or_none()
+                if not existing_username:
+                    break
+                username = f'{base_username}_{counter}'
+                counter += 1
+
+            # ── 5. Create the character ──
+            new_user = User(
+                telegram_id=telegram_id,
+                username=username,
+                password_hash=f'telegram$auto_{telegram_id}',
+                display_name=display_name,
+                first_name=telegram_user.get('first_name', ''),
+                last_name=telegram_user.get('last_name', ''),
+                avatar='pixel_adventurer',
+                character_class=character_class,
+                level=1,
+                experience=0,
+                coins=0,
+                texture_path=texture_path,
+                sprite_data=sprite_data,
+            )
+            session.add(new_user)
+            session.commit()
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Character created successfully!',
+                'user': serialize_user(new_user),
+            }), 201
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to create character: {str(e)}'
+        }), 500
+
+
+# Add rate-limit tracking dicts for registration from WebApp
+_register_attempts: dict[int, list[float]] = {}
+"""Track timestamps of registration attempts per telegram_id."""
+
+REGISTER_WINDOW_SECONDS = 3600  # 1 hour
+MAX_REGISTER_ATTEMPTS = 3
 
 
 # ===========================================================================

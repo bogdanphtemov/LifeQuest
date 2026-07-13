@@ -1,0 +1,49 @@
+/* Pixel Art Fonts
+
+   This file provides a centralised font system for the pixel-art aesthetic.
+   Because Press Start 2P (Google Font) requires an external HTTP request and
+   raises GDPR concerns when served from Google's CDN, this project uses a
+   stack of widely-available system monospace fonts as a zero-dependency
+   fallback. The result is nearly identical on most platforms.
+
+   Font stack (from most- to least-desired):
+     "Press Start 2P" — pixel-perfect, but must be hosted locally (woff2)
+     "Courier New"    — ubiquitous on Windows
+     "Consolas"       — crisp on modern Windows / macOS with VS Code
+     "Monaco"         — macOS default monospace
+     "monospace"      — ultimate system fallback
+
+   NOTE: If you self-host Press Start 2P, place the woff2 file in
+   /frontend/fonts/ and uncomment the @font-face block below.
+*/
+
+/*
+@font-face {
+    font-family: 'Press Start 2P';
+    src: url('/fonts/press-start-2p.woff2') format('woff2');
+    font-display: swap;
+}
+*/
+
+/* =========================================================================
+   Utility class — apply pixel-style to any text element.
+   NOTE: This class is NOT currently used in the HTML templates. It exists
+   as a convenient hook for future dynamic content or if elements need a
+   quick pixel override.
+   ========================================================================= */
+.pixel-font {
+    font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+    letter-spacing: 1px;
+    font-size: 14px;
+}
+
+/* =========================================================================
+   CSS custom properties — integrate with the design system in main.css.
+   These are the canonical font tokens used across the project. Import this
+   file AFTER main.css so the variables are available globally.
+   ========================================================================= */
+:root {
+    --font-pixel: 'Courier New', 'Consolas', 'Monaco', monospace;
+    --font-mono: 'Courier New', 'Consolas', monospace;
+    --font-ui: 'Arial', sans-serif;
+}

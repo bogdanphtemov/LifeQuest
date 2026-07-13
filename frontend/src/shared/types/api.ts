@@ -11,6 +11,12 @@ export interface SessionResponse {
   user?: Character;
 }
 
+export interface RegisterResponse {
+  status: string;
+  message: string;
+  user?: Character;
+}
+
 export interface TelegramUser {
   id: number;
   first_name: string;
@@ -28,4 +34,6 @@ export interface Character {
   experience?: number;
   coins?: number;
   telegram_id?: number;
+  texture_path?: string | null;
+  sprite_data?: string | null;
 }

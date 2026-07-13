@@ -123,6 +123,8 @@ def migrate_sqlite_schema():
             "ALTER TABLE users ADD COLUMN character_class VARCHAR(64) "
             "DEFAULT 'adventurer'"
         ),
+        'texture_path': 'ALTER TABLE users ADD COLUMN texture_path VARCHAR(512)',
+        'sprite_data': 'ALTER TABLE users ADD COLUMN sprite_data TEXT',
     }
 
     with app.engine.begin() as connection:

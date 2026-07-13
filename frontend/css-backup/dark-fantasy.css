@@ -1,0 +1,18 @@
+/* Dark Fantasy Theme — visual effects for the future game screen.
+
+   This theme is scoped to .game-screen which does NOT exist in the current
+   simplified HTML (read-only dashboard). It is kept for future use when the
+   interactive game screen is re-implemented.
+
+   Features:
+   - CRT scanline overlay animation
+   - Glowing title animation
+   - Border glow for panels
+
+   NOTE: All styles in this file are currently unused. They are preserved
+   to document the intended visual direction for the game screen.
+*/
+
+:root {
+    --shadow-deep: 0 0 20px rgba(0, 0, 0, 0.9);
+}

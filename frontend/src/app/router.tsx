@@ -1,5 +1,4 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { CharacterDashboardPage } from '@/pages/CharacterDashboard';
 import { StartGamePage } from '@/pages/StartGame';
 import { GameDashboardPage } from '@/pages/GameDashboard';
 import { CharacterCreationPage } from '@/pages/CharacterCreation';
@@ -16,8 +15,8 @@ export function AppRouter() {
       {/* Character creation — for new players */}
       <Route path='/character-creation' element={<CharacterCreationPage />} />
 
-      {/* Legacy dashboard path */}
-      <Route path='/dashboard' element={<CharacterDashboardPage />} />
+      {/* Legacy redirects */}
+      <Route path='/dashboard' element={<Navigate to='/game-dashboard' replace />} />
 
       {/* No match → home */}
       <Route path='*' element={<Navigate to='/' replace />} />

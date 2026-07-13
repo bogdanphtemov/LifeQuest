@@ -17,8 +17,8 @@ export function StartScreen() {
       const result = await checkCharacterExistence();
 
       if (result.exists && result.user) {
-        // Character exists — redirect to Dashboard (game entry point)
-        navigate('/dashboard');
+        // Character exists — redirect to Game Dashboard
+        navigate('/game-dashboard');
       } else {
         // No character — redirect to character creation
         navigate('/character-creation');
