@@ -107,9 +107,6 @@ htmlcov/
 idea.txt
 problems.txt
 
-# Downloaded / external assets (copyrighted material, temporary placeholders)
-asset/
-
 # Temporary files
 *.tmp
 *.temp
@@ -120,6 +117,3 @@ asset/
 # Personal notes / scratchpad
 idea.txt
 problems.txt
-
-# Raw game assets (not yet integrated in production code)
-asset/
