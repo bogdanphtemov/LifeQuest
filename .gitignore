@@ -74,6 +74,13 @@ logs/
 .coverage
 htmlcov/
 
+# Personal development notes
+idea.txt
+problems.txt
+
+# Downloaded / external assets (copyrighted material, temporary placeholders)
+asset/
+
 # Temporary files
 *.tmp
 *.temp
